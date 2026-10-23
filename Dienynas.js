@@ -29,6 +29,7 @@ const K = {
   role: "dienynasplus.role",
   lang: "dienynasplus.lang",
   session: "dienynasplus.session",
+  aiKey: "dienynasplus.openai-key",
 };
 
 // ───────────────────────────── text & date helpers ─────────────────────────────
@@ -632,6 +633,16 @@ const NATIVE_TEXT = {
     signedOut: "Signed out. Run the script again to sign in.",
     badLogin: "TAMO didn't accept the sign-in details. Enter them again?",
     tryAgain: "Try again",
+    save: "Save",
+    aiKeyAdd: "Add OpenAI key for Ask",
+    aiKeyRemove: "Remove OpenAI key",
+    aiKeyTitle: "OpenAI API key",
+    aiKeyMsg: "Used by Ask. It stays in this phone's Keychain and is only sent to OpenAI, together with the school data needed to answer.",
+    aiKeyBad: "That doesn't look like an OpenAI key (it starts with sk-).",
+    aiNoData: "School data hasn't loaded yet. Refresh and try again.",
+    aiQuota: "OpenAI rate limit or quota reached. Try again in a minute, or check billing on platform.openai.com.",
+    aiOffline: "Could not reach OpenAI. Check the internet connection.",
+    aiEmpty: "OpenAI returned an empty answer. Try asking again.",
   },
   lt: {
     pickChild: "Kieno dienynas?",
@@ -650,6 +661,16 @@ const NATIVE_TEXT = {
     signedOut: "Atsijungta. Paleiskite skriptą iš naujo, kad prisijungtumėte.",
     badLogin: "TAMO nepriėmė prisijungimo duomenų. Įvesti iš naujo?",
     tryAgain: "Bandyti dar kartą",
+    save: "Išsaugoti",
+    aiKeyAdd: "Pridėti OpenAI raktą klausimams",
+    aiKeyRemove: "Pašalinti OpenAI raktą",
+    aiKeyTitle: "OpenAI API raktas",
+    aiKeyMsg: "Naudojamas skiltyje „Klausk“. Saugomas šio telefono Keychain ir siunčiamas tik į OpenAI kartu su atsakymui reikalingais mokyklos duomenimis.",
+    aiKeyBad: "Tai nepanašu į OpenAI raktą (jis prasideda sk-).",
+    aiNoData: "Mokyklos duomenys dar neįkelti. Atnaujinkite ir bandykite dar kartą.",
+    aiQuota: "Pasiektas OpenAI užklausų ar apmokėjimo limitas. Bandykite po minutės arba patikrinkite platform.openai.com.",
+    aiOffline: "Nepavyko susisiekti su OpenAI. Patikrinkite interneto ryšį.",
+    aiEmpty: "OpenAI grąžino tuščią atsakymą. Paklauskite dar kartą.",
   },
 };
 const t = (k) => (NATIVE_TEXT[LANG()] || NATIVE_TEXT.en)[k] || k;
@@ -680,7 +701,7 @@ function forgetSession() {
 
 const safeJSON = (v) => JSON.stringify(v).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 
-const NO_ZOOM = '<script>(function(){var p=function(e){e.preventDefault()};["gesturestart","gesturechange","gestureend"].forEach(function(t){document.addEventListener(t,p,{passive:false})});document.addEventListener("touchmove",function(e){if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});var last=0;document.addEventListener("touchend",function(e){var n=Date.now();if(n-last<300&&!e.target.closest("button,a,[data-toggle]"))e.preventDefault();last=n},{passive:false});})();</script>';
+const NO_ZOOM = '<script>(function(){var p=function(e){e.preventDefault()};["gesturestart","gesturechange","gestureend"].forEach(function(t){document.addEventListener(t,p,{passive:false})});document.addEventListener("touchmove",function(e){if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});var last=0;document.addEventListener("touchend",function(e){var n=Date.now();if(n-last<300&&!e.target.closest("button,a,[data-toggle],textarea,input"))e.preventDefault();last=n},{passive:false});})();</script>';
 
 const CSS = `
 :root{
@@ -802,7 +823,38 @@ nav.tabs .badge{position:absolute;top:0;left:calc(50% + 6px);background:var(--re
 .banner{margin:12px 4px 0;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red);font-size:14px}
 .banner.info{background:var(--chip);color:var(--ink)}
 footer{color:var(--faint);font-size:12.5px;text-align:center;margin:22px 0 8px}
-@media (prefers-reduced-motion: reduce){ .sheet{transition:none} .icon-btn.spin svg{animation:none} }
+/* Ask */
+.icon-btn.on{background:var(--blue);border-color:var(--blue)}
+.icon-btn.on svg{stroke:#fff}
+.askwrap{display:flex;flex-direction:column;min-height:calc(100vh - 190px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+.chat{flex:1;display:flex;flex-direction:column;gap:10px;padding-top:14px}
+.intro{color:var(--muted);font-size:15px;margin:2px 4px 12px}
+.sugg{display:flex;flex-wrap:wrap;gap:8px}
+.sugg button{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px 12px;font-size:15px;text-align:left}
+.bubble{max-width:88%;padding:10px 13px;border-radius:18px;font-size:16px;line-height:1.45;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
+.bubble.user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:6px;white-space:pre-wrap}
+.bubble.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
+.bubble.error{align-self:flex-start;background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
+.bubble p{margin:0 0 6px}.bubble p:last-child{margin:0}
+.bubble ul{margin:4px 0 6px;padding-left:20px}.bubble li{margin:2px 0}
+.typing{display:inline-flex;gap:4px;align-items:center}
+.typing i{width:7px;height:7px;border-radius:4px;background:var(--faint);animation:blink 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.keycard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;font-size:15px}
+.keycard p{margin:0 0 10px;color:var(--muted)}
+.keyrow{display:flex;gap:8px}
+.keyrow input{flex:1;min-width:0;font:16px -apple-system,sans-serif;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink);-webkit-user-select:text;user-select:text}
+.keyrow button,.newchat{background:var(--ink);color:var(--card);border-radius:12px;padding:10px 14px;font-weight:700}
+.newchat{background:var(--chip);color:var(--ink);font-size:14px;padding:6px 12px;border-radius:999px}
+.composer{position:sticky;bottom:calc(72px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:flex-end;padding:12px 0 8px;background:linear-gradient(to bottom,transparent,var(--paper) 35%)}
+.composer textarea{flex:1;font:16px/1.35 -apple-system,"SF Pro Text",sans-serif;padding:10px 14px;border-radius:21px;border:1px solid var(--line);background:var(--card);color:var(--ink);resize:none;height:44px;max-height:130px;-webkit-user-select:text;user-select:text;outline:none}
+.composer textarea:focus{border-color:var(--blue)}
+.composer .send{width:44px;height:44px;border-radius:22px;background:var(--blue);display:grid;place-items:center;flex:none}
+.composer .send:disabled{opacity:.4}
+.composer .send svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.askhint{color:var(--faint);font-size:12.5px;text-align:center;margin:2px 0 0}
+@media (prefers-reduced-motion: reduce){ .sheet{transition:none} .icon-btn.spin svg{animation:none} .typing i{animation:none;opacity:.6} }
 `;
 
 // Runs inside the WebView. Kept as a real function so it needs no escaping.
@@ -834,6 +886,12 @@ function pageMain() {
       formatives: "Formative assessments", noSchool: "No school", updated: (t) => `Updated ${t}`, stale: (t, e) => `Showing saved data from ${t}. Refresh failed: ${e}`,
       partial: "Some sections couldn't load:", feed: { grade: "Grade", formative: "Assessment", absent: "Absent", late: "Late", praise: "Praise", remark: "Remark", comment: "Comment", homework: "New homework", other: "Note" },
       opening: "Opening…", markedRead: "Opening a message marks it as read in TAMO.",
+      askTitle: "Ask", askIntro: "Ask anything about the school week. Answers use only what's loaded from TAMO: schedule, homework, grades, attendance, notices and messages.",
+      askSugg: ["What's due tomorrow?", "Any tests in the next two weeks?", "Summarise today's messages", "How are the maths grades going?", "What should go in the school bag tomorrow?"],
+      askPlaceholder: "Ask about school…", newChat: "New chat",
+      keyHelp: "Paste your OpenAI API key once. It stays in this phone's Keychain and is only sent to OpenAI, together with the school data needed to answer.",
+      keySave: "Save", keyBad: "That doesn't look like an OpenAI key (it starts with sk-).", askFailed: (e) => `Couldn't answer: ${e}`,
+      askHint: "AI answers can be wrong. Check important dates in TAMO.",
     },
     lt: {
       tabs: ["Šiandien", "Tvarkaraštis", "Namų darbai", "Žinutės", "Pažymiai"],
@@ -860,6 +918,12 @@ function pageMain() {
       formatives: "Kaupiamieji vertinimai", noSchool: "Pamokų nėra", updated: (t) => `Atnaujinta ${t}`, stale: (t, e) => `Rodomi išsaugoti duomenys (${t}). Nepavyko atnaujinti: ${e}`,
       partial: "Kai kurių skilčių įkelti nepavyko:", feed: { grade: "Pažymys", formative: "Kaupiamasis", absent: "Praleido", late: "Pavėlavo", praise: "Pagyrimas", remark: "Pastaba", comment: "Komentaras", homework: "Naujas namų darbas", other: "Įrašas" },
       opening: "Atidaroma…", markedRead: "Atidarius žinutę, TAMO ji pažymima kaip perskaityta.",
+      askTitle: "Klausk", askIntro: "Klauskite apie mokyklos savaitę. Atsakymai remiasi tik iš TAMO įkeltais duomenimis: tvarkaraščiu, namų darbais, pažymiais, lankomumu, pranešimais ir žinutėmis.",
+      askSugg: ["Ką reikia atlikti rytojui?", "Ar per dvi savaites bus kontrolinių?", "Apibendrink šiandienos žinutes", "Kaip sekasi matematika?", "Ką įsidėti į kuprinę rytojui?"],
+      askPlaceholder: "Klauskite apie mokyklą…", newChat: "Naujas pokalbis",
+      keyHelp: "Vieną kartą įklijuokite OpenAI API raktą. Jis saugomas šio telefono Keychain ir siunčiamas tik į OpenAI kartu su atsakymui reikalingais mokyklos duomenimis.",
+      keySave: "Išsaugoti", keyBad: "Tai nepanašu į OpenAI raktą (jis prasideda sk-).", askFailed: (e) => `Nepavyko atsakyti: ${e}`,
+      askHint: "DI atsakymai gali klysti. Svarbias datas pasitikrinkite TAMO.",
     },
   };
   const T = LANGS[D.lang] || LANGS.en;
@@ -898,11 +962,11 @@ function pageMain() {
     clearTimeout(p.timer);
     ok ? p.res(payload) : p.rej(new Error(payload));
   };
-  function call(action, params = {}) {
+  function call(action, params = {}, timeoutMs = 60000) {
     const run = () =>
       new Promise((res, rej) => {
         const id = ++seq;
-        pending[id] = { res, rej, timer: setTimeout(() => window.bridgeReply(id, false, "timeout"), 60000) };
+        pending[id] = { res, rej, timer: setTimeout(() => window.bridgeReply(id, false, "timeout"), timeoutMs) };
         location.href = `tamo://${action}?id=${id}&p=${encodeURIComponent(JSON.stringify(params))}`;
       });
     const p = chain.then(run, run);
@@ -911,7 +975,7 @@ function pageMain() {
   }
 
   // ── state ──
-  const S = { tab: 0, weekOffset: 0, weeks: { ...D.weeks }, day: null, hwFilter: "todo", msgDay: null };
+  const S = { tab: 0, weekOffset: 0, weeks: { ...D.weeks }, day: null, hwFilter: "todo", msgDay: null, chat: (D.chat || []).slice(), thinking: false, needKey: false, pendingQ: "" };
   const allDays = () => [...(S.weeks["0"] || []), ...(S.weeks["1"] || [])];
   const dayOf = (date) => allDays().find((d) => d.date === date) || (Object.values(S.weeks).flat().find((d) => d && d.date === date));
   const eventsOn = (date) => (D.events || []).filter((e) => e.from && e.from <= date && (e.to || e.from) >= date);
@@ -1193,6 +1257,69 @@ function pageMain() {
     ].join("");
   }
 
+  // ── ask (chat) ──
+  function md(text) {
+    const inline = (s) => h(s).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\*([^*\s][^*]*)\*/g, "<i>$1</i>").replace(/https?:\/\/[^\s<)]+/g, (u) => `<a href="${u}" style="color:var(--blue)">${u}</a>`);
+    const out = [];
+    let ul = [];
+    const flush = () => {
+      if (ul.length) out.push(`<ul>${ul.map((li) => `<li>${inline(li)}</li>`).join("")}</ul>`);
+      ul = [];
+    };
+    String(text || "").split(/\n/).forEach((raw) => {
+      const line = raw.trim();
+      const b = line.match(/^(?:[-*•]|\d+[.)])\s+(.*)$/);
+      if (b) return ul.push(b[1]);
+      flush();
+      if (line) out.push(`<p>${inline(line.replace(/^#+\s*/, ""))}</p>`);
+    });
+    flush();
+    return out.join("");
+  }
+  function screenAsk() {
+    const bubbles = S.chat.map((m) => `<div class="bubble ${m.role}">${m.role === "assistant" ? md(m.text) : h(m.text)}</div>`);
+    if (S.thinking) bubbles.push(`<div class="bubble assistant"><span class="typing"><i></i><i></i><i></i></span></div>`);
+    const intro = !S.chat.length && !S.thinking
+      ? `<p class="intro">${h(T.askIntro)}</p><div class="sugg">${T.askSugg.map((q) => `<button data-ask="${h(q)}">${h(q)}</button>`).join("")}</div>`
+      : `<div style="display:flex;justify-content:flex-end"><button class="newchat" id="newchat">${h(T.newChat)}</button></div>`;
+    const key = S.needKey
+      ? `<div class="keycard"><p>${h(T.keyHelp)}</p><div class="keyrow"><input id="aikey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-..."><button id="savekey">${h(T.keySave)}</button></div></div>`
+      : "";
+    return `<div class="askwrap">${intro}<div class="chat">${bubbles.join("")}${key}</div>
+      <div class="composer"><textarea id="q" rows="1" enterkeyhint="send" placeholder="${h(T.askPlaceholder)}"></textarea>
+      <button class="send" id="send" aria-label="send" ${S.thinking ? "disabled" : ""}><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+      <p class="askhint">${h(T.askHint)}</p></div>`;
+  }
+  async function ask(question) {
+    const q = String(question || "").trim();
+    if (!q || S.thinking) return;
+    S.chat.push({ role: "user", text: q });
+    S.thinking = true;
+    S.needKey = false;
+    render();
+    const box = $("#q");
+    if (box) box.value = "";
+    scrollEnd();
+    try {
+      const r = await call("ask", { q }, 120000);
+      S.chat.push({ role: "assistant", text: r.answer });
+    } catch (e) {
+      if (e.message === "NEED_KEY") {
+        S.chat.pop();
+        S.pendingQ = q;
+        S.needKey = true;
+      } else {
+        S.chat.push({ role: "error", text: T.askFailed(e.message) });
+      }
+    }
+    S.thinking = false;
+    render();
+    scrollEnd();
+  }
+  function scrollEnd() {
+    if (S.tab === 5) setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 30);
+  }
+
   // ── chrome ──
   const ICONS = [
     '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
@@ -1207,20 +1334,23 @@ function pageMain() {
     const head = `<header class="top">
       <div class="who"><b>${h(D.child.title)}</b>${h(D.child.subtitle || "")}</div>
       <div class="tools">
+        <button class="icon-btn ${S.tab === 5 ? "on" : ""}" data-tab="5" aria-label="ask"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
         <button class="icon-btn" id="refresh" aria-label="refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></button>
         <button class="icon-btn" id="settings" aria-label="settings"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
       </div></header>
-      <h1 class="date">${h(S.tab === 0 ? longDate(D.today) : T.tabs[S.tab])}</h1>`;
+      <h1 class="date">${h(S.tab === 0 ? longDate(D.today) : S.tab === 5 ? T.askTitle : T.tabs[S.tab])}</h1>`;
     const banners = [];
     if (D.stale) banners.push(`<div class="banner">${h(T.stale(D.stale.at, D.stale.error))}</div>`);
     else if (D.warnings && D.warnings.length) banners.push(`<div class="banner">${h(T.partial)} ${h(D.warnings.join("; "))}</div>`);
-    const screens = [screenToday, screenSchedule, screenHomework, screenMessages, screenGrades];
+    const screens = [screenToday, screenSchedule, screenHomework, screenMessages, screenGrades, screenAsk];
+    const draft = $("#q") ? $("#q").value : "";
     const tabs = `<nav class="tabs">${T.tabs
       .map((l, i) => `<button class="${i === S.tab ? "on" : ""}" data-tab="${i}"><svg viewBox="0 0 24 24">${ICONS[i]}</svg>${h(l)}${i === 3 && unread ? `<span class="badge num">${unread}</span>` : ""}${i === 2 && hwBadge ? `<span class="badge num">${hwBadge}</span>` : ""}</button>`)
       .join("")}</nav>`;
     const t = new Date(D.at);
     const updated = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-    $("#app").innerHTML = `${head}<main>${banners.join("")}${screens[S.tab]()}<footer>${h(T.updated(updated))}</footer></main>${tabs}`;
+    $("#app").innerHTML = `${head}<main>${banners.join("")}${screens[S.tab]()}${S.tab === 5 ? "" : `<footer>${h(T.updated(updated))}</footer>`}</main>${tabs}`;
+    if ($("#q") && draft) $("#q").value = draft;
   }
 
   // ── message sheet ──
@@ -1267,7 +1397,29 @@ function pageMain() {
       S.tab = Number(el.dataset.tab);
       render();
       window.scrollTo(0, 0);
+      if (S.tab === 5) scrollEnd();
       return;
+    }
+    if (el.dataset.ask) return ask(el.dataset.ask);
+    if (el.id === "send") return ask($("#q").value);
+    if (el.id === "newchat") {
+      call("newchat").catch(() => {});
+      S.chat = [];
+      S.needKey = false;
+      return render();
+    }
+    if (el.id === "savekey") {
+      const key = ($("#aikey").value || "").trim();
+      if (!/^sk-/.test(key)) return alert(T.keyBad);
+      try {
+        await call("setkey", { key });
+      } catch (err) {
+        return alert(err.message);
+      }
+      S.needKey = false;
+      const q = S.pendingQ;
+      S.pendingQ = "";
+      return q ? ask(q) : render();
     }
     if (el.hasAttribute("data-toggle")) return el.classList.toggle("open");
     if (el.dataset.week) {
@@ -1293,6 +1445,19 @@ function pageMain() {
       return call("refresh").catch(() => el.classList.remove("spin"));
     }
     if (el.id === "settings") return call("settings").catch(() => {});
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target && e.target.id === "q" && e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      ask(e.target.value);
+    }
+  });
+  document.addEventListener("input", (e) => {
+    if (e.target && e.target.id === "q") {
+      e.target.style.height = "44px";
+      e.target.style.height = `${Math.min(130, e.target.scrollHeight + 2)}px`;
+    }
   });
 
   render();
@@ -1322,6 +1487,152 @@ function messageHTML(title, message, buttons = []) {
   ${buttons.map((b, i) => `<button class="btn ${i ? "alt" : ""}" onclick="location.href='tamo://${b.action}?id=0&p=%7B%7D'">${esc(b.label)}</button>`).join("")}</div></body></html>`;
 }
 
+// ───────────────────────────── ✨ Ask: chat over the loaded data (OpenAI Responses API) ─────────────────────────────
+
+const AI = {
+  MODEL: "gpt-5.4-mini",
+  REASONING: "low", // 'low' keeps answers quick; raise for harder questions
+  HISTORY_TURNS: 8, // earlier question/answer pairs sent along for follow-ups
+  MAX_MESSAGES: 80, // message headers included in the context
+};
+
+const WEEKDAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const weekdayOf = (d) => WEEKDAYS_EN[(new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7];
+const clip = (s, n) => (s && s.length > n ? `${s.slice(0, n)}…` : s);
+
+// Everything the app has loaded, reshaped into compact JSON the model can read. The child's name is left out.
+function aiContext(data, extraWeeks = {}, bodies = {}) {
+  const byDate = new Map();
+  [...Object.values(data.weeks || {}), ...Object.values(extraWeeks)]
+    .filter(Array.isArray)
+    .flat()
+    .forEach((d) => d && d.date && byDate.set(d.date, d));
+  const schedule = [...byDate.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((d) => ({
+      date: d.date,
+      weekday: weekdayOf(d.date),
+      lessons: d.lessons.map((l) =>
+        compact({
+          nr: l.number,
+          time: l.start ? `${l.start}-${l.end || ""}` : "",
+          subject: l.subject,
+          teacher: l.teacher,
+          topic: l.topic,
+          label: l.label,
+          marks_given: l.marks,
+          formatives: (l.formatives || []).map((f) => [f.value, f.type].filter(Boolean).join(" ")),
+          notes: (l.details || []).map((x) => compact({ title: x.title, text: clip(x.text, 600), files: (x.files || []).map((f) => f.name) })),
+          subject_average: l.average,
+        })
+      ),
+    }));
+  const p = vilniusParts(new Date(), { hour: "2-digit", minute: "2-digit" });
+  return {
+    today: data.today,
+    weekday: weekdayOf(data.today),
+    time_now: `${p.hour}:${p.minute}`,
+    class: data.child && data.child.subtitle,
+    schedule,
+    homework: (data.homework || []).map((h) =>
+      compact({ subject: h.subject, task: clip(h.text, 800), set_on: h.assigned, due: h.due, done: h.done, files: (h.files || []).map((f) => f.name) })
+    ),
+    recent_notifications: data.feed || [],
+    grades_last_30_days: (data.diary && data.diary.grades) || [],
+    formative_assessments_last_30_days: (data.diary && data.diary.formatives) || [],
+    attendance_last_30_days: (data.diary && data.diary.attendance) || [],
+    school_calendar: data.events || [],
+    messages: (data.messages || []).slice(0, AI.MAX_MESSAGES).map((m) =>
+      compact({
+        date: m.date,
+        time: m.time,
+        from: m.from,
+        from_role: m.fromTitle,
+        subject: m.subject,
+        unread: m.unread,
+        important: m.important,
+        has_attachments: m.files,
+        class_group: m.group,
+        body: clip(bodies[`${m.typeId}/${m.id}`], 3000),
+      })
+    ),
+  };
+}
+
+function aiInstructions(ctx) {
+  return [
+    "You are the assistant inside Tamo+, an iPhone app a parent uses to follow their child's Lithuanian school e-diary (TAMO dienynas).",
+    "Answer ONLY from the TAMO data below. If the answer isn't there, say so plainly and, if useful, say where in TAMO to look. Never invent lessons, grades, homework, dates, teachers or messages.",
+    `Today is ${ctx.weekday} ${ctx.today}, local time ${ctx.time_now} (Europe/Vilnius). Resolve "today", "tomorrow", "this week" and "next school day" against that; weekends and dates in school_calendar have no lessons.`,
+    "Reply in the language of the user's latest question (Lithuanian or English). School content is in Lithuanian: quote subjects and tasks as written, and add a short translation when replying in English.",
+    "Be brief and practical for a phone screen: lead with the answer, then short '- ' bullets with dates and subjects. You may use **bold**. No tables, no headings.",
+    "Grades are on a 1–10 scale. Attendance 'n' means absent, 'p' means late. Formative assessments can be percentages, +/- or words.",
+    "A message 'body' is only present for messages the parent opened in the app; for the others you know only date, sender and subject.",
+    "",
+    "TAMO data (JSON):",
+    JSON.stringify(ctx),
+  ].join("\n");
+}
+
+async function aiAsk(data, extraWeeks, bodies, history, question) {
+  if (!Keychain.contains(K.aiKey)) return { needKey: true };
+  const req = new Request("https://api.openai.com/v1/responses");
+  req.method = "POST";
+  req.timeoutInterval = 90;
+  req.headers = { Authorization: `Bearer ${Keychain.get(K.aiKey)}`, "Content-Type": "application/json" };
+  req.body = JSON.stringify({
+    model: AI.MODEL,
+    instructions: aiInstructions(aiContext(data, extraWeeks, bodies)),
+    input: [...history.map((m) => ({ role: m.role, content: m.text })), { role: "user", content: question }],
+    reasoning: { effort: AI.REASONING },
+    store: false, // don't keep the child's school data on OpenAI's side
+  });
+  let res = null;
+  try {
+    res = await req.loadJSON();
+  } catch (_) {
+    if (!req.response) throw new Error(t("aiOffline"));
+  }
+  const code = req.response && req.response.statusCode;
+  if (code === 401) {
+    Keychain.remove(K.aiKey);
+    return { needKey: true };
+  }
+  if (code === 429) throw new Error(t("aiQuota"));
+  if (code >= 400 || !res) throw new Error((res && res.error && res.error.message) || `OpenAI answered HTTP ${code}`);
+  let text = res.output_text || "";
+  if (!text && Array.isArray(res.output)) {
+    text = res.output
+      .flatMap((o) => o.content || [])
+      .filter((c) => c.type === "output_text")
+      .map((c) => c.text)
+      .join("");
+  }
+  text = String(text).trim();
+  if (!text) throw new Error(t("aiEmpty"));
+  return { answer: text };
+}
+
+async function askKeyNative() {
+  const a = new Alert();
+  a.title = t("aiKeyTitle");
+  a.message = t("aiKeyMsg");
+  a.addSecureTextField("sk-...", "");
+  a.addAction(t("save"));
+  a.addCancelAction(t("cancel"));
+  if ((await a.presentAlert()) === -1) return false;
+  const key = a.textFieldValue(0).trim();
+  if (!/^sk-/.test(key)) {
+    const e = new Alert();
+    e.message = t("aiKeyBad");
+    e.addAction("OK");
+    await e.presentAlert();
+    return false;
+  }
+  Keychain.set(K.aiKey, key);
+  return true;
+}
+
 // ───────────────────────────── app controller ─────────────────────────────
 
 class App {
@@ -1329,12 +1640,21 @@ class App {
     this.api = new Tamo(true);
     this.wv = new WebView();
     this.busy = false;
+    this.data = null;
+    this.chat = []; // {role: "user" | "assistant", text}
+    this.extraWeeks = {}; // weeks browsed beyond this and next week, for Ask
+    this.msgBodies = {}; // bodies of messages opened in this session, for Ask
+  }
+
+  page(data, extra = {}) {
+    return buildHTML({ ...data, chat: this.chat, hasAiKey: Keychain.contains(K.aiKey), ...extra });
   }
 
   async start() {
     this.wv.shouldAllowRequest = (req) => this.route(req);
     const cached = readCache();
-    await this.wv.loadHTML(cached ? buildHTML({ ...cached, warnings: [] }) : messageHTML(APP_NAME, LANG() === "lt" ? "Įkeliama…" : "Loading…"));
+    this.data = cached;
+    await this.wv.loadHTML(cached ? this.page(cached, { warnings: [] }) : messageHTML(APP_NAME, LANG() === "lt" ? "Įkeliama…" : "Loading…"));
     const shown = this.wv.present(true);
     await this.reload();
     await shown;
@@ -1359,7 +1679,8 @@ class App {
     try {
       const data = await loadAll(this.api);
       saveCache(data);
-      await this.wv.loadHTML(buildHTML(data));
+      this.data = data;
+      await this.wv.loadHTML(this.page(data));
     } catch (e) {
       if (e && e.badLogin) {
         await this.wv.loadHTML(
@@ -1373,7 +1694,8 @@ class App {
         const at = cached ? new Date(cached.at) : null;
         if (cached) {
           const stamp = `${at.getDate()}.${String(at.getMonth() + 1).padStart(2, "0")} ${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
-          await this.wv.loadHTML(buildHTML({ ...cached, warnings: [], stale: { at: stamp, error: e.message || String(e) } }));
+          this.data = this.data || cached;
+          await this.wv.loadHTML(this.page(cached, { warnings: [], stale: { at: stamp, error: e.message || String(e) } }));
         } else {
           await this.wv.loadHTML(messageHTML(APP_NAME, e.message || String(e), [{ label: t("tryAgain"), action: "refresh" }]));
         }
@@ -1401,18 +1723,42 @@ class App {
       switch (action) {
         case "week": {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(params.monday || "")) throw new Error("bad date");
-          return this.reply(q.id, true, await fetchWeek(this.api, params.monday));
+          const days = await fetchWeek(this.api, params.monday);
+          this.extraWeeks[params.monday] = days;
+          return this.reply(q.id, true, days);
         }
         case "message": {
           const id = encodeURIComponent(String(params.id || ""));
           const type = encodeURIComponent(String(params.typeId || "1"));
           if (!id) throw new Error("bad message");
-          return this.reply(q.id, true, mapMessageDetail(await this.api.modern(`messaging/messages/received/${type}/${id}`, {}, false)));
+          const detail = mapMessageDetail(await this.api.modern(`messaging/messages/received/${type}/${id}`, {}, false));
+          this.msgBodies[`${params.typeId || "1"}/${params.id}`] = detail.body;
+          return this.reply(q.id, true, detail);
         }
         case "file": {
           await this.openFile(params);
           return this.reply(q.id, true, {});
         }
+        case "ask": {
+          const question = String(params.q || "").trim().slice(0, 2000);
+          if (!question) throw new Error("empty question");
+          const data = this.data || readCache();
+          if (!data) throw new Error(t("aiNoData"));
+          const history = this.chat.slice(-AI.HISTORY_TURNS * 2);
+          const r = await aiAsk(data, this.extraWeeks, this.msgBodies, history, question);
+          if (r.needKey) return this.reply(q.id, false, "NEED_KEY");
+          this.chat.push({ role: "user", text: question }, { role: "assistant", text: r.answer });
+          return this.reply(q.id, true, r);
+        }
+        case "setkey": {
+          const key = String(params.key || "").trim();
+          if (!/^sk-/.test(key)) throw new Error(t("aiKeyBad"));
+          Keychain.set(K.aiKey, key);
+          return this.reply(q.id, true, {});
+        }
+        case "newchat":
+          this.chat = [];
+          return this.reply(q.id, true, {});
         case "refresh":
           await this.reply(q.id, true, {});
           return this.reload();
@@ -1452,7 +1798,8 @@ class App {
     const actions = [];
     const session = this.api.session || (Keychain.contains(K.session) ? JSON.parse(Keychain.get(K.session)) : null);
     if (session && (session.roles || []).length > 1) actions.push(["switchChild", t("switchChild")]);
-    actions.push(["lang", t("language")], ["web", t("openWeb")], ["login", t("changeLogin")], ["signout", t("signOut")]);
+    actions.push(["lang", t("language")], Keychain.contains(K.aiKey) ? ["aikeyRemove", t("aiKeyRemove")] : ["aikeyAdd", t("aiKeyAdd")]);
+    actions.push(["web", t("openWeb")], ["login", t("changeLogin")], ["signout", t("signOut")]);
     actions.forEach(([, l]) => a.addAction(l));
     a.addCancelAction(t("cancel"));
     const i = await a.presentSheet();
@@ -1468,8 +1815,16 @@ class App {
     if (act === "lang") {
       Keychain.set(K.lang, LANG() === "lt" ? "en" : "lt");
       const cached = readCache();
-      if (cached) return this.wv.loadHTML(buildHTML({ ...cached, warnings: [] }));
+      if (cached) return this.wv.loadHTML(this.page(cached, { warnings: [] }));
       return this.reload();
+    }
+    if (act === "aikeyRemove") {
+      Keychain.remove(K.aiKey);
+      return this.data && this.wv.loadHTML(this.page(this.data, { warnings: [] }));
+    }
+    if (act === "aikeyAdd") {
+      if (await askKeyNative()) return this.data && this.wv.loadHTML(this.page(this.data, { warnings: [] }));
+      return;
     }
     if (act === "web") return Safari.open("https://dienynas.tamo.lt/");
     if (act === "login") {
@@ -1483,7 +1838,8 @@ class App {
       return;
     }
     if (act === "signout") {
-      [K.user, K.pass, K.role, K.session].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
+      [K.user, K.pass, K.role, K.session, K.aiKey].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
+      this.chat = [];
       clearCache();
       return this.wv.loadHTML(messageHTML(APP_NAME, t("signedOut")));
     }

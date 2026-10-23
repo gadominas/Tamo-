@@ -2,12 +2,13 @@
 
 A faster, cleaner way to follow your child's school day in the **TAMO dienynas**, the Lithuanian school e-diary, built as a single [Scriptable](https://scriptable.app) script for iPhone.
 
-The official TAMO website and app spread the important things across many screens. Dienynas+ puts what a parent checks every day on one screen: what's happening now, what to prepare for tomorrow, what homework is due, and what the school wrote today.
+The official TAMO website and app spread the important things across many screens. Dienynas+ puts what a parent checks every day on one screen: what's happening now, what to prepare for tomorrow, what homework is due, and what the school wrote today. And when you'd rather just ask, **✨ Ask** answers questions about the school week in Lithuanian or English.
 
 <p>
   <img src="screenshots/today.png" width="240" alt="Today screen with the current lesson, today's lessons and tomorrow's preparation">
   <img src="screenshots/schedule.png" width="240" alt="Weekly schedule with a lesson expanded to show homework and attachments">
   <img src="screenshots/homework.png" width="240" alt="Homework grouped by due date">
+  <img src="screenshots/ask.png" width="240" alt="Ask: a chat answering questions about homework and tests">
 </p>
 
 > Screenshots use made-up sample data. No real pupil, teacher or school appears in them.
@@ -67,6 +68,24 @@ The official TAMO website and app spread the important things across many screen
 
 <br clear="right">
 
+### ✨ Ask: chat about the school week
+
+<p>
+  <img src="screenshots/ask-start.png" width="240" alt="Ask screen with suggested questions">
+  <img src="screenshots/ask.png" width="240" alt="Ask answering what's due Monday and which tests are coming">
+</p>
+
+Tap ✨ in the top bar and ask in your own words, in Lithuanian or English:
+
+- *What's due tomorrow?* *Ar per dvi savaites bus kontrolinių?* *What should go in the school bag on Monday?*
+- *Summarise today's messages.* *Who teaches English?* *How are the maths grades going?*
+
+Answers come only from what the app has loaded from TAMO: this week's and next week's schedule (plus any weeks you browsed), homework, grades, formative assessments, attendance, notices, the school calendar, and messages. The assistant is told never to invent dates, grades or tasks, and to say so when something isn't in the data. Follow-up questions keep the context of the conversation. Lithuanian school text is quoted as written, with a short translation when you ask in English.
+
+Message bodies are included only for messages you've opened in the app, because opening a message marks it as read in TAMO.
+
+It uses the OpenAI Responses API (`gpt-5.4-mini`, low reasoning effort), the same setup as [Strava Daily Digest](https://github.com/gadominas/StravaFeed). You need your own OpenAI API key: the first time you ask, paste it once and it's saved in the iOS Keychain. You can also add or remove it from the ••• menu. API usage is billed separately from a ChatGPT subscription; one question costs well under a cent.
+
 ### Also
 
 <p>
@@ -86,7 +105,8 @@ The official TAMO website and app spread the important things across many screen
 1. Install [Scriptable](https://apps.apple.com/app/scriptable/id1405459188) from the App Store.
 2. In Scriptable, tap **+**, name the script `Dienynas`, and paste in the contents of [`Dienynas.js`](Dienynas.js).
 3. Run it and sign in with your TAMO username and password.
-4. Optional widget: long-press the home screen, add a **Scriptable** widget (small or medium), edit it, and choose **Dienynas** as the script.
+4. Optional, for ✨ Ask: an OpenAI API key from [platform.openai.com](https://platform.openai.com/api-keys). Paste it the first time you ask a question.
+5. Optional widget: long-press the home screen, add a **Scriptable** widget (small or medium), edit it, and choose **Dienynas** as the script.
 
 To update, replace the script's contents with the latest `Dienynas.js`.
 
@@ -104,14 +124,17 @@ Dienynas+ talks directly to the same API the official **TAMO IŠMANIEMS** mobile
 | Holidays and school events | `core/app/calendar/events/allDay` |
 | Messages | `messaging/messages/received` and `messaging/messages/group/received` |
 | Attachments | `files/filedownloadurl` / `GetFileUrl` |
+| ✨ Ask | OpenAI `v1/responses`, sent only when you ask a question |
 
 Everything is in one file. The data layer runs in Scriptable; the interface is an HTML page shown in Scriptable's WebView, and the two communicate through `tamo://` links intercepted by the script.
 
 ## Privacy and security
 
 - Your username and password are stored only in the **iOS Keychain** on your phone. They are never written into the script.
-- The script talks only to TAMO's own servers. There is no analytics, tracking or third-party server.
-- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the session and the cache.
+- The script talks only to TAMO's own servers, plus OpenAI when you use ✨ Ask. There is no analytics or tracking.
+- **✨ Ask sends the loaded school data to OpenAI** with each question: schedule, homework, grades, attendance, notices and message headers (and the bodies of messages you opened). The child's name isn't sent. Requests are made with `store: false`, so OpenAI doesn't keep them for later retrieval. If you don't add an OpenAI key, nothing is ever sent to OpenAI.
+- Your OpenAI key is stored only in the iOS Keychain and sent only to OpenAI.
+- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the OpenAI key, the session and the cache.
 - Dienynas+ is **read-only** with one exception, the same as the official app: **opening a message marks it as read** in TAMO.
 
 ## Limitations
@@ -120,6 +143,7 @@ Everything is in one file. The data layer runs in Scriptable; the interface is a
 - Some data may require an active **TAMO IŠMANIEMS** subscription on the account.
 - The API is undocumented and can change without notice. If a section fails to load, the app says which one in a red banner and shows the rest.
 - Homework can't be ticked as done from the app; TAMO only allows that for pupils' own logins.
+- ✨ Ask can be wrong like any AI assistant. Check important dates in TAMO.
 
 ## Credits
 
