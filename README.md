@@ -64,6 +64,7 @@ The official TAMO website and app spread the important things across many screen
 <img src="screenshots/grades.png" width="240" align="right" alt="Grades screen">
 
 - **Subject averages for the last 30 days**, calculated from numeric grades, with a bar for each subject.
+- **Grade scale per child.** Most Lithuanian schools grade 1–10, but some use 1–7. Tap **Scale 1–10** on the Grades tab (or use the ••• menu) to pick 1–10, 1–7, 1–5 or any other top grade. Each child keeps their own setting, and averages, bars and ✨ Ask all use it.
 - Recent grades, formative assessments (*kaupiamieji*), and an attendance summary with absences and late arrivals.
 
 <br clear="right">
@@ -80,11 +81,20 @@ Tap ✨ in the top bar and ask in your own words, in Lithuanian or English:
 - *What's due tomorrow?* *Ar per dvi savaites bus kontrolinių?* *What should go in the school bag on Monday?*
 - *Summarise today's messages.* *Who teaches English?* *How are the maths grades going?*
 
-Answers come only from what the app has loaded from TAMO: this week's and next week's schedule (plus any weeks you browsed), homework, grades, formative assessments, attendance, notices, the school calendar, and messages. The assistant is told never to invent dates, grades or tasks, and to say so when something isn't in the data. Follow-up questions keep the context of the conversation. Lithuanian school text is quoted as written, with a short translation when you ask in English.
+**It pulls everything first.** When you open Ask, the app gathers all the school data TAMO offers for that child and shows what the chat now knows:
 
-Message bodies are included only for messages you've opened in the app, because opening a message marks it as read in TAMO.
+- lessons for five weeks (two back, this week, two ahead), with topics, tests and notes
+- all homework since 1 September, plus what was done in class over the last five weeks
+- all grades, formative assessments and attendance marks since 1 September
+- the school calendar, notices, and messages from the last 60 days, including the text of messages that were already read (unread ones stay unread)
 
-It uses the OpenAI Responses API (`gpt-5.4-mini`, low reasoning effort), the same setup as [Strava Daily Digest](https://github.com/gadominas/StravaFeed). You need your own OpenAI API key: the first time you ask, paste it once and it's saved in the iOS Keychain. You can also add or remove it from the ••• menu. API usage is billed separately from a ChatGPT subscription; one question costs well under a cent.
+The data is refreshed automatically when it's more than a few hours old or from a previous day, or any time with **Refresh data**.
+
+**It remembers the conversation.** Every question is sent together with the whole conversation so far, so follow-ups like "and what did we decide?" work. The conversation is saved on the phone, separately for each child, and is still there next time you open the app. **Clear memory** (tap twice) deletes it and starts over.
+
+The assistant is told to answer only from that data, never to invent dates, grades or tasks, and to say so when something isn't there. It judges grades on the child's own scale (1–10, 1–7, …). Lithuanian school text is quoted as written, with a short translation when you ask in English.
+
+It uses the OpenAI Responses API (`gpt-5.4-mini`, low reasoning effort), the same setup as [Strava Daily Digest](https://github.com/gadominas/StravaFeed). You need your own OpenAI API key: the first time you ask, paste it once and it's saved in the iOS Keychain. You can also add or remove it from the ••• menu. API usage is billed separately from a ChatGPT subscription. Because every question carries the school data and the whole conversation, a question costs roughly a cent or two; OpenAI caches the unchanged part, which keeps follow-ups cheaper.
 
 ### Also
 
@@ -132,9 +142,10 @@ Everything is in one file. The data layer runs in Scriptable; the interface is a
 
 - Your username and password are stored only in the **iOS Keychain** on your phone. They are never written into the script.
 - The script talks only to TAMO's own servers, plus OpenAI when you use ✨ Ask. There is no analytics or tracking.
-- **✨ Ask sends the loaded school data to OpenAI** with each question: schedule, homework, grades, attendance, notices and message headers (and the bodies of messages you opened). The child's name isn't sent. Requests are made with `store: false`, so OpenAI doesn't keep them for later retrieval. If you don't add an OpenAI key, nothing is ever sent to OpenAI.
+- **✨ Ask sends the school data to OpenAI** with each question: lessons, homework, classwork, grades, attendance, notices, the calendar, message headers and the text of already-read messages, plus the conversation so far. The child's name isn't sent. Requests are made with `store: false`, so OpenAI doesn't keep them for later retrieval. If you don't add an OpenAI key, nothing is ever sent to OpenAI.
 - Your OpenAI key is stored only in the iOS Keychain and sent only to OpenAI.
-- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the OpenAI key, the session and the cache.
+- The Ask conversation and the data gathered for it are saved in Scriptable's local documents folder, one file per child. **Clear memory** deletes that child's file.
+- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the OpenAI key, the session, the cache and all saved conversations.
 - Dienynas+ is **read-only** with one exception, the same as the official app: **opening a message marks it as read** in TAMO.
 
 ## Limitations
@@ -144,6 +155,7 @@ Everything is in one file. The data layer runs in Scriptable; the interface is a
 - The API is undocumented and can change without notice. If a section fails to load, the app says which one in a red banner and shows the rest.
 - Homework can't be ticked as done from the app; TAMO only allows that for pupils' own logins.
 - ✨ Ask can be wrong like any AI assistant. Check important dates in TAMO.
+- A very long conversation can eventually exceed what the AI can read at once. The app then asks you to **Clear memory**.
 
 ## Credits
 

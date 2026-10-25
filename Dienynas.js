@@ -30,6 +30,7 @@ const K = {
   lang: "dienynasplus.lang",
   session: "dienynasplus.session",
   aiKey: "dienynasplus.openai-key",
+  scale: "dienynasplus.grade-scale",
 };
 
 // ───────────────────────────── text & date helpers ─────────────────────────────
@@ -524,9 +525,9 @@ async function fetchWeek(api, monday) {
   return mapWeek(await api.modern("v2/app/calendar/events", { date: monday }));
 }
 
-async function fetchMessages(api, sinceDate) {
+async function fetchMessages(api, sinceDate, maxPages = 5) {
   const out = [];
-  for (let page = 1; page <= 5; page++) {
+  for (let page = 1; page <= maxPages; page++) {
     const res = await api.modern("messaging/messages/received", { orderDescending: "true", page: String(page) }, false);
     const items = mapMessages(list(res, "items"), false);
     out.push(...items);
@@ -643,6 +644,12 @@ const NATIVE_TEXT = {
     aiQuota: "OpenAI rate limit or quota reached. Try again in a minute, or check billing on platform.openai.com.",
     aiOffline: "Could not reach OpenAI. Check the internet connection.",
     aiEmpty: "OpenAI returned an empty answer. Try asking again.",
+    aiTooLong: "This conversation has grown too long for the AI. Tap Clear memory to start over.",
+    scaleTitle: "Grade scale",
+    scaleNow: "Now:",
+    scaleOther: "Other…",
+    scaleOtherTitle: "Highest grade at this school",
+    scaleMenu: "Grade scale",
   },
   lt: {
     pickChild: "Kieno dienynas?",
@@ -671,6 +678,12 @@ const NATIVE_TEXT = {
     aiQuota: "Pasiektas OpenAI užklausų ar apmokėjimo limitas. Bandykite po minutės arba patikrinkite platform.openai.com.",
     aiOffline: "Nepavyko susisiekti su OpenAI. Patikrinkite interneto ryšį.",
     aiEmpty: "OpenAI grąžino tuščią atsakymą. Paklauskite dar kartą.",
+    aiTooLong: "Pokalbis tapo per ilgas DI. Paspauskite „Išvalyti atmintį“ ir pradėkite iš naujo.",
+    scaleTitle: "Vertinimo skalė",
+    scaleNow: "Dabar:",
+    scaleOther: "Kita…",
+    scaleOtherTitle: "Aukščiausias pažymys šioje mokykloje",
+    scaleMenu: "Vertinimo skalė",
   },
 };
 const t = (k) => (NATIVE_TEXT[LANG()] || NATIVE_TEXT.en)[k] || k;
@@ -841,6 +854,14 @@ footer{color:var(--faint);font-size:12.5px;text-align:center;margin:22px 0 8px}
 .typing i{width:7px;height:7px;border-radius:4px;background:var(--faint);animation:blink 1.2s infinite}
 .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.mem{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:10px 0 12px;font-size:14px}
+.mem.err{color:var(--red)}
+.mem-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mem-h span{color:var(--faint);font-size:13px}
+.mem-p{color:var(--muted);margin-top:4px;line-height:1.4}
+.mem-a{display:flex;gap:18px;margin-top:8px}
+.lnk{color:var(--blue);font-weight:600;font-size:14px}
+.lnk.red{color:var(--red)}
 .keycard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;font-size:15px}
 .keycard p{margin:0 0 10px;color:var(--muted)}
 .keyrow{display:flex;gap:8px}
@@ -892,6 +913,13 @@ function pageMain() {
       keyHelp: "Paste your OpenAI API key once. It stays in this phone's Keychain and is only sent to OpenAI, together with the school data needed to answer.",
       keySave: "Save", keyBad: "That doesn't look like an OpenAI key (it starts with sk-).", askFailed: (e) => `Couldn't answer: ${e}`,
       askHint: "AI answers can be wrong. Check important dates in TAMO.",
+      memTitle: "In this chat",
+      memLine: (i, range, from) => `Lessons: ${i.lessons} (${range}). Homework: ${i.homework}. Grades and assessments: ${i.grades}. Attendance marks: ${i.absences}. Messages: ${i.messages} (${i.bodies} with text). Calendar dates: ${i.events}. Since ${from}.`,
+      memUpdated: (t) => `pulled ${t}`, memRefresh: "Refresh data", memClear: "Clear memory", memClearConfirm: "Tap again to clear",
+      memNote: "The whole conversation is kept on this phone and sent with every question, so earlier answers aren't forgotten.",
+      gathering: "Pulling everything from TAMO…", gatherFailed: (e) => `Couldn't pull the data: ${e}`,
+      stages: { schedule: "Lessons", homework: "Homework", grades: "Grades and attendance", calendar: "School calendar", messages: "Messages" },
+      scaleLbl: (m) => `Scale 1–${m}`,
     },
     lt: {
       tabs: ["Šiandien", "Tvarkaraštis", "Namų darbai", "Žinutės", "Pažymiai"],
@@ -924,6 +952,13 @@ function pageMain() {
       keyHelp: "Vieną kartą įklijuokite OpenAI API raktą. Jis saugomas šio telefono Keychain ir siunčiamas tik į OpenAI kartu su atsakymui reikalingais mokyklos duomenimis.",
       keySave: "Išsaugoti", keyBad: "Tai nepanašu į OpenAI raktą (jis prasideda sk-).", askFailed: (e) => `Nepavyko atsakyti: ${e}`,
       askHint: "DI atsakymai gali klysti. Svarbias datas pasitikrinkite TAMO.",
+      memTitle: "Šiame pokalbyje",
+      memLine: (i, range, from) => `Pamokos: ${i.lessons} (${range}). Namų darbai: ${i.homework}. Pažymiai ir vertinimai: ${i.grades}. Lankomumo žymos: ${i.absences}. Žinutės: ${i.messages} (su tekstu: ${i.bodies}). Kalendoriaus datos: ${i.events}. Nuo ${from}.`,
+      memUpdated: (t) => `surinkta ${t}`, memRefresh: "Atnaujinti duomenis", memClear: "Išvalyti atmintį", memClearConfirm: "Paspauskite dar kartą",
+      memNote: "Visas pokalbis saugomas šiame telefone ir siunčiamas su kiekvienu klausimu, todėl ankstesni atsakymai nepamirštami.",
+      gathering: "Renkami visi TAMO duomenys…", gatherFailed: (e) => `Nepavyko surinkti duomenų: ${e}`,
+      stages: { schedule: "Pamokos", homework: "Namų darbai", grades: "Pažymiai ir lankomumas", calendar: "Mokyklos kalendorius", messages: "Žinutės" },
+      scaleLbl: (m) => `Skalė 1–${m}`,
     },
   };
   const T = LANGS[D.lang] || LANGS.en;
@@ -975,7 +1010,9 @@ function pageMain() {
   }
 
   // ── state ──
-  const S = { tab: 0, weekOffset: 0, weeks: { ...D.weeks }, day: null, hwFilter: "todo", msgDay: null, chat: (D.chat || []).slice(), thinking: false, needKey: false, pendingQ: "" };
+  const S = { tab: 0, weekOffset: 0, weeks: { ...D.weeks }, day: null, hwFilter: "todo", msgDay: null, chat: (D.chat || []).slice(), thinking: false, needKey: false, pendingQ: "", info: D.chatInfo || null, preparing: false, stage: "", prepError: "", clearArmed: false };
+  if (typeof D.startTab === "number") S.tab = D.startTab;
+  const GMAX = Number(D.gradeMax) || 10;
   const allDays = () => [...(S.weeks["0"] || []), ...(S.weeks["1"] || [])];
   const dayOf = (date) => allDays().find((d) => d.date === date) || (Object.values(S.weeks).flat().find((d) => d && d.date === date));
   const eventsOn = (date) => (D.events || []).filter((e) => e.from && e.from <= date && (e.to || e.from) >= date);
@@ -1222,14 +1259,14 @@ function pageMain() {
 
   function screenGrades() {
     const g = (D.diary && D.diary.grades) || [];
-    const numeric = g.map((x) => ({ ...x, n: parseFloat(String(x.value).replace(",", ".")) })).filter((x) => x.n >= 1 && x.n <= 10);
+    const numeric = g.map((x) => ({ ...x, n: parseFloat(String(x.value).replace(",", ".")) })).filter((x) => x.n >= 1 && x.n <= GMAX);
     const subjects = {};
     numeric.forEach((x) => (subjects[x.subject] = subjects[x.subject] || []).push(x.n));
     const avgs = Object.entries(subjects)
       .map(([s, v]) => [s, v.reduce((a, b) => a + b, 0) / v.length, v.length])
       .sort((a, b) => b[1] - a[1]);
     const avgRows = avgs.map(
-      ([s, a, n]) => `<div class="avg"><span class="s">${h(s)}<div class="meta" style="font-weight:400;color:var(--muted);font-size:13px">${n}×</div></span><span class="track"><span class="fill" style="display:block;width:${a * 10}%;background:${color(s)}"></span></span><span class="v num">${a.toFixed(1)}</span></div>`
+      ([s, a, n]) => `<div class="avg"><span class="s">${h(s)}<div class="meta" style="font-weight:400;color:var(--muted);font-size:13px">${n}×</div></span><span class="track"><span class="fill" style="display:block;width:${Math.min(100, (a / GMAX) * 100)}%;background:${color(s)}"></span></span><span class="v num">${a.toFixed(1)}</span></div>`
     );
     const recent = g
       .slice()
@@ -1245,7 +1282,7 @@ function pageMain() {
       .slice(0, 15)
       .map((x) => `<div class="row"><span class="bar" style="background:${color(x.subject)}"></span><div class="main"><div class="title">${h(x.subject)}</div><div class="meta">${h(shortDate(x.date))}${x.type ? ", " + h(x.type) : ""}</div></div><span class="pill green">${h(x.value)}</span></div>`);
     return [
-      section(T.averages, panel(avgRows, T.noGrades)),
+      section(T.averages, panel(avgRows, T.noGrades), `<button data-scale style="color:var(--blue);font-weight:600">${h(T.scaleLbl(GMAX))}</button>`),
       section(T.recent, panel(recent, T.noGrades)),
       form.length ? section(T.formatives, panel(form, "")) : "",
       section(T.attendance, `<div class="panel"><div class="chips"><span class="chip num">${absent} ${h(T.absent)}</span><span class="chip num">${late} ${h(T.late)}</span></div>${att
@@ -1276,19 +1313,55 @@ function pageMain() {
     flush();
     return out.join("");
   }
+  function memCard() {
+    if (S.preparing) {
+      return `<div class="mem"><div class="mem-h"><b>${h(T.gathering)}</b></div><div class="mem-p"><span class="typing"><i></i><i></i><i></i></span> ${h(T.stages[S.stage] || "")}</div></div>`;
+    }
+    if (S.prepError) return `<div class="mem err">${h(T.gatherFailed(S.prepError))} <button class="lnk" id="memrefresh">${h(T.memRefresh)}</button></div>`;
+    const i = S.info;
+    if (!i) return "";
+    const t = new Date(i.builtAt);
+    const at = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
+    const range = i.weekFrom ? `${shortDate(i.weekFrom)} – ${shortDate(i.weekTo)}` : "";
+    return `<div class="mem">
+      <div class="mem-h"><b>${h(T.memTitle)}</b><span>${h(T.memUpdated(at))}</span></div>
+      <div class="mem-p">${h(T.memLine(i, range, i.from ? shortDate(i.from) : ""))}</div>
+      <div class="mem-a"><button class="lnk" id="memrefresh">${h(T.memRefresh)}</button><button class="lnk red" id="memclear">${h(S.clearArmed ? T.memClearConfirm : T.memClear)}</button></div>
+    </div>`;
+  }
   function screenAsk() {
     const bubbles = S.chat.map((m) => `<div class="bubble ${m.role}">${m.role === "assistant" ? md(m.text) : h(m.text)}</div>`);
-    if (S.thinking) bubbles.push(`<div class="bubble assistant"><span class="typing"><i></i><i></i><i></i></span></div>`);
-    const intro = !S.chat.length && !S.thinking
+    if (S.thinking) bubbles.push(`<div class="bubble assistant"><span class="typing"><i></i><i></i><i></i></span>${S.stage ? ` <span style="color:var(--muted);font-size:14px">${h(T.stages[S.stage] || "")}</span>` : ""}</div>`);
+    const intro = `${memCard()}${!S.chat.length && !S.thinking
       ? `<p class="intro">${h(T.askIntro)}</p><div class="sugg">${T.askSugg.map((q) => `<button data-ask="${h(q)}">${h(q)}</button>`).join("")}</div>`
-      : `<div style="display:flex;justify-content:flex-end"><button class="newchat" id="newchat">${h(T.newChat)}</button></div>`;
+      : ""}`;
     const key = S.needKey
       ? `<div class="keycard"><p>${h(T.keyHelp)}</p><div class="keyrow"><input id="aikey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-..."><button id="savekey">${h(T.keySave)}</button></div></div>`
       : "";
     return `<div class="askwrap">${intro}<div class="chat">${bubbles.join("")}${key}</div>
       <div class="composer"><textarea id="q" rows="1" enterkeyhint="send" placeholder="${h(T.askPlaceholder)}"></textarea>
       <button class="send" id="send" aria-label="send" ${S.thinking ? "disabled" : ""}><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
-      <p class="askhint">${h(T.askHint)}</p></div>`;
+      <p class="askhint">${h(T.askHint)} ${h(T.memNote)}</p></div>`;
+  }
+  window.askProgress = (stage) => {
+    S.stage = stage;
+    if (S.tab === 5) render();
+  };
+  async function prepare(force) {
+    if (S.preparing) return;
+    S.preparing = true;
+    S.prepError = "";
+    S.stage = "";
+    render();
+    try {
+      const r = await call("prepare", { force: !!force }, 180000);
+      S.info = r.info;
+    } catch (e) {
+      S.prepError = e.message;
+    }
+    S.preparing = false;
+    S.stage = "";
+    if (S.tab === 5) render();
   }
   async function ask(question) {
     const q = String(question || "").trim();
@@ -1301,8 +1374,9 @@ function pageMain() {
     if (box) box.value = "";
     scrollEnd();
     try {
-      const r = await call("ask", { q }, 120000);
+      const r = await call("ask", { q }, 300000);
       S.chat.push({ role: "assistant", text: r.answer });
+      if (r.info) S.info = r.info;
     } catch (e) {
       if (e.message === "NEED_KEY") {
         S.chat.pop();
@@ -1313,6 +1387,7 @@ function pageMain() {
       }
     }
     S.thinking = false;
+    S.stage = "";
     render();
     scrollEnd();
   }
@@ -1397,17 +1472,36 @@ function pageMain() {
       S.tab = Number(el.dataset.tab);
       render();
       window.scrollTo(0, 0);
-      if (S.tab === 5) scrollEnd();
+      if (S.tab === 5) {
+        scrollEnd();
+        if (!S.info && !S.preparing && !S.prepError) prepare(false);
+      }
       return;
+    }
+    if (el.hasAttribute("data-scale")) return call("scale", { tab: S.tab }).catch(() => {});
+    if (el.id === "memrefresh") return prepare(true);
+    if (el.id === "memclear") {
+      if (!S.clearArmed) {
+        S.clearArmed = true;
+        render();
+        setTimeout(() => {
+          if (S.clearArmed) {
+            S.clearArmed = false;
+            if (S.tab === 5) render();
+          }
+        }, 4000);
+        return;
+      }
+      S.clearArmed = false;
+      await call("clearchat").catch(() => {});
+      S.chat = [];
+      S.info = null;
+      S.needKey = false;
+      render();
+      return prepare(false);
     }
     if (el.dataset.ask) return ask(el.dataset.ask);
     if (el.id === "send") return ask($("#q").value);
-    if (el.id === "newchat") {
-      call("newchat").catch(() => {});
-      S.chat = [];
-      S.needKey = false;
-      return render();
-    }
     if (el.id === "savekey") {
       const key = ($("#aikey").value || "").trim();
       if (!/^sk-/.test(key)) return alert(T.keyBad);
@@ -1487,62 +1581,250 @@ function messageHTML(title, message, buttons = []) {
   ${buttons.map((b, i) => `<button class="btn ${i ? "alt" : ""}" onclick="location.href='tamo://${b.action}?id=0&p=%7B%7D'">${esc(b.label)}</button>`).join("")}</div></body></html>`;
 }
 
-// ───────────────────────────── ✨ Ask: chat over the loaded data (OpenAI Responses API) ─────────────────────────────
+// ───────────────────────────── ✨ Ask: chat over everything TAMO has (OpenAI Responses API) ─────────────────────────────
 
 const AI = {
   MODEL: "gpt-5.4-mini",
   REASONING: "low", // 'low' keeps answers quick; raise for harder questions
-  HISTORY_TURNS: 8, // earlier question/answer pairs sent along for follow-ups
-  MAX_MESSAGES: 80, // message headers included in the context
+  CONTEXT_MAX_AGE_H: 4, // older school data is re-pulled before the next question; the conversation is kept
+  WEEKS_BACK: 2, // lesson weeks pulled around this week
+  WEEKS_AHEAD: 2,
+  MESSAGE_DAYS: 60, // message headers this far back
+  BODY_DAYS: 45, // already-read messages this recent get their text pulled (unread ones stay unread)
+  MAX_BODIES: 30,
 };
 
 const WEEKDAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const weekdayOf = (d) => WEEKDAYS_EN[(new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7];
 const clip = (s, n) => (s && s.length > n ? `${s.slice(0, n)}…` : s);
+const schoolYearStart = (d) => (Number(d.slice(5, 7)) >= 9 ? `${d.slice(0, 4)}-09-01` : `${Number(d.slice(0, 4)) - 1}-09-01`);
+function chunkRange(from, to, maxDays = 60) {
+  const out = [];
+  for (let s = from; s <= to; s = addDays(s, maxDays + 1)) {
+    const e = addDays(s, maxDays);
+    out.push([s, e < to ? e : to]);
+  }
+  return out;
+}
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i], i);
+      }
+    })
+  );
+  return out;
+}
+function dedupe(items, keyOf) {
+  const seen = new Set();
+  return items.filter((x) => {
+    const k = keyOf(x);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
 
-// Everything the app has loaded, reshaped into compact JSON the model can read. The child's name is left out.
-function aiContext(data, extraWeeks = {}, bodies = {}) {
+// ── grade scale, chosen per child (most schools grade 1–10, some 1–7) ──
+function gradeScales() {
+  try {
+    return Keychain.contains(K.scale) ? JSON.parse(Keychain.get(K.scale)) : {};
+  } catch (_) {
+    return {};
+  }
+}
+const gradeMaxFor = (roleKey) => Number(gradeScales()[roleKey]) || 10;
+function setGradeMax(roleKey, max) {
+  const all = gradeScales();
+  all[roleKey] = max;
+  Keychain.set(K.scale, JSON.stringify(all));
+}
+async function pickGradeScale(roleKey, childName) {
+  const cur = gradeMaxFor(roleKey);
+  const a = new Alert();
+  a.title = t("scaleTitle");
+  a.message = `${childName ? `${childName}. ` : ""}${t("scaleNow")} 1–${cur}`;
+  const opts = [10, 7, 5];
+  opts.forEach((n) => a.addAction(`1–${n}${n === cur ? "  ✓" : ""}`));
+  a.addAction(t("scaleOther"));
+  a.addCancelAction(t("cancel"));
+  const i = await a.presentSheet();
+  if (i < 0) return false;
+  let max = opts[i];
+  if (i === opts.length) {
+    const o = new Alert();
+    o.title = t("scaleOtherTitle");
+    o.addTextField("10", String(cur));
+    o.addAction("OK");
+    o.addCancelAction(t("cancel"));
+    if ((await o.presentAlert()) === -1) return false;
+    max = parseInt(o.textFieldValue(0), 10);
+    if (!(max >= 2 && max <= 100)) return false;
+  }
+  setGradeMax(roleKey, max);
+  return true;
+}
+
+// ── chat memory: one conversation per child, kept on this phone ──
+function hashKey(s) {
+  let x = 5381;
+  for (const c of String(s)) x = ((x * 33) ^ c.codePointAt(0)) >>> 0;
+  return x.toString(36);
+}
+const chatPath = (roleKey) => fm.joinPath(fm.documentsDirectory(), `dienynas-plus-chat-${hashKey(roleKey)}.json`);
+function loadChat(roleKey) {
+  try {
+    const p = chatPath(roleKey);
+    if (fm.fileExists(p)) {
+      const c = JSON.parse(fm.readString(p));
+      if (c && c.v === 1 && c.roleKey === roleKey && Array.isArray(c.history)) return c;
+    }
+  } catch (_) {}
+  return { v: 1, roleKey, history: [], pack: null };
+}
+function saveChat(chat) {
+  try {
+    fm.writeString(chatPath(chat.roleKey), JSON.stringify(chat));
+  } catch (_) {}
+}
+function deleteChat(roleKey) {
+  try {
+    const p = chatPath(roleKey);
+    if (fm.fileExists(p)) fm.remove(p);
+  } catch (_) {}
+}
+function deleteAllChats() {
+  try {
+    fm.listContents(fm.documentsDirectory())
+      .filter((n) => /^dienynas-plus-chat-.*\.json$/.test(n))
+      .forEach((n) => fm.remove(fm.joinPath(fm.documentsDirectory(), n)));
+  } catch (_) {}
+}
+
+// ── pull everything TAMO offers for this child: the chat's knowledge pack ──
+async function gatherAll(api, base, progress = () => {}) {
+  const session = await api.ensure();
+  const today = todayV();
+  const from = schoolYearStart(today);
+  const monday = mondayOf(today);
+  const warnings = [];
+  const safe = (label, p) =>
+    p.catch((e) => {
+      if (e && e.badLogin) throw e;
+      warnings.push(`${label}: ${e.message || e}`);
+      return null;
+    });
+
+  progress("schedule");
+  const mondays = [];
+  for (let i = -AI.WEEKS_BACK; i <= AI.WEEKS_AHEAD; i++) mondays.push(addDays(monday, i * 7));
+  const weekList = await mapLimit(mondays, 3, (m) => safe(`schedule ${m}`, fetchWeek(api, m)));
+  const weeks = Object.fromEntries(mondays.map((m, i) => [m, weekList[i]]).filter(([, d]) => d));
+
+  progress("homework");
+  const hwChunks = await mapLimit(chunkRange(from, addDays(today, 35)), 3, ([a, b]) =>
+    safe("homework", api.modern("core/app/darbai", { dateFrom: a, dateTo: b, workType: "home" }).then(mapHomework))
+  );
+  const homework = dedupe(hwChunks.filter(Boolean).flat(), (i) => `${i.lessonId}|${i.due}|${i.subject}|${(i.text || "").slice(0, 40)}`).sort((a, b) =>
+    (a.due || "").localeCompare(b.due || "")
+  );
+  const classwork = (await safe("classwork", api.modern("core/app/darbai", { dateFrom: addDays(today, -35), dateTo: today, workType: "class" }).then(mapHomework))) || [];
+
+  progress("grades");
+  const diaryChunks = await mapLimit(chunkRange(from, today), 3, ([a, b]) => safe("grades", api.modern("core/app/dienynas", { dateFrom: a, dateTo: b }).then(mapDiary)));
+  const diary = { grades: [], attendance: [], formatives: [] };
+  diaryChunks.filter(Boolean).forEach((d) => {
+    diary.grades.push(...d.grades);
+    diary.attendance.push(...d.attendance);
+    diary.formatives.push(...d.formatives);
+  });
+
+  progress("calendar");
+  const evChunks = await mapLimit(chunkRange(from, addDays(today, 120)), 3, ([a, b]) =>
+    safe("calendar", api.modern("core/app/calendar/events/allDay", { dateFrom: a, dateTo: b }).then(mapAllDay))
+  );
+  const events = dedupe(evChunks.filter(Boolean).flat(), (e) => `${e.title}|${e.from}|${e.to}`);
+  const feed = (await safe("notifications", api.modern("core/app/feeds").then((r) => mapFeed(requiredList(r, "result"))))) || (base && base.feed) || [];
+
+  progress("messages");
+  const messages = (await safe("messages", fetchMessages(api, addDays(today, -AI.MESSAGE_DAYS), 12))) || (base && base.messages) || [];
+  const readable = messages.filter((m) => !m.unread && m.date >= addDays(today, -AI.BODY_DAYS)).slice(0, AI.MAX_BODIES);
+  const bodies = {};
+  await mapLimit(readable, 4, async (m) => {
+    try {
+      const d = mapMessageDetail(await api.modern(`messaging/messages/received/${encodeURIComponent(m.typeId)}/${encodeURIComponent(m.id)}`, {}, false));
+      if (d.body) bodies[`${m.typeId}/${m.id}`] = d.body;
+    } catch (_) {}
+  });
+
+  return { builtAt: Date.now(), today, from, roleKey: session.roleKey, class: session.roleSubtitle, weeks, homework, classwork, diary, events, feed, messages, bodies, warnings };
+}
+
+function packInfo(pack) {
+  if (!pack) return null;
+  const days = Object.values(pack.weeks || {}).flat();
+  const mondays = Object.keys(pack.weeks || {}).sort();
+  return {
+    builtAt: pack.builtAt,
+    from: pack.from,
+    weekFrom: mondays[0],
+    weekTo: mondays.length ? addDays(mondays[mondays.length - 1], 4) : "",
+    lessons: days.reduce((n, d) => n + ((d && d.lessons) || []).length, 0),
+    homework: (pack.homework || []).length,
+    grades: ((pack.diary && pack.diary.grades) || []).length + ((pack.diary && pack.diary.formatives) || []).length,
+    absences: ((pack.diary && pack.diary.attendance) || []).length,
+    messages: (pack.messages || []).length,
+    bodies: Object.keys(pack.bodies || {}).length,
+    events: (pack.events || []).length,
+    warnings: pack.warnings || [],
+  };
+}
+
+// The knowledge pack reshaped into compact JSON. The child's name is left out.
+function aiContext(pack, opened = {}, gradeMax = 10) {
   const byDate = new Map();
-  [...Object.values(data.weeks || {}), ...Object.values(extraWeeks)]
+  Object.values(pack.weeks || {})
     .filter(Array.isArray)
     .flat()
     .forEach((d) => d && d.date && byDate.set(d.date, d));
-  const schedule = [...byDate.values()]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map((d) => ({
-      date: d.date,
-      weekday: weekdayOf(d.date),
-      lessons: d.lessons.map((l) =>
-        compact({
-          nr: l.number,
-          time: l.start ? `${l.start}-${l.end || ""}` : "",
-          subject: l.subject,
-          teacher: l.teacher,
-          topic: l.topic,
-          label: l.label,
-          marks_given: l.marks,
-          formatives: (l.formatives || []).map((f) => [f.value, f.type].filter(Boolean).join(" ")),
-          notes: (l.details || []).map((x) => compact({ title: x.title, text: clip(x.text, 600), files: (x.files || []).map((f) => f.name) })),
-          subject_average: l.average,
-        })
-      ),
-    }));
-  const p = vilniusParts(new Date(), { hour: "2-digit", minute: "2-digit" });
+  const bodies = { ...(pack.bodies || {}), ...opened };
+  const work = (h) => compact({ subject: h.subject, task: clip(h.text, 600), set_on: h.assigned, due: h.due, done: h.done, files: (h.files || []).map((f) => f.name) });
   return {
-    today: data.today,
-    weekday: weekdayOf(data.today),
-    time_now: `${p.hour}:${p.minute}`,
-    class: data.child && data.child.subtitle,
-    schedule,
-    homework: (data.homework || []).map((h) =>
-      compact({ subject: h.subject, task: clip(h.text, 800), set_on: h.assigned, due: h.due, done: h.done, files: (h.files || []).map((f) => f.name) })
-    ),
-    recent_notifications: data.feed || [],
-    grades_last_30_days: (data.diary && data.diary.grades) || [],
-    formative_assessments_last_30_days: (data.diary && data.diary.formatives) || [],
-    attendance_last_30_days: (data.diary && data.diary.attendance) || [],
-    school_calendar: data.events || [],
-    messages: (data.messages || []).slice(0, AI.MAX_MESSAGES).map((m) =>
+    data_pulled_on: pack.today,
+    class: pack.class,
+    grade_scale: `1–${gradeMax}`,
+    schedule: [...byDate.values()]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((d) => ({
+        date: d.date,
+        weekday: weekdayOf(d.date),
+        lessons: d.lessons.map((l) =>
+          compact({
+            nr: l.number,
+            time: l.start ? `${l.start}-${l.end || ""}` : "",
+            subject: l.subject,
+            teacher: l.teacher,
+            topic: clip(l.topic, 300),
+            label: l.label,
+            marks_given: l.marks,
+            formatives: (l.formatives || []).map((f) => [f.value, f.type].filter(Boolean).join(" ")),
+            notes: (l.details || []).map((x) => compact({ title: x.title, text: clip(x.text, 400), files: (x.files || []).map((f) => f.name) })),
+            subject_average: l.average,
+          })
+        ),
+      })),
+    homework_since_school_year_start: (pack.homework || []).map(work),
+    classwork_last_5_weeks: (pack.classwork || []).map((h) => compact({ date: h.assigned, subject: h.subject, done_in_class: clip(h.text, 400) })),
+    recent_notifications: pack.feed || [],
+    grades_since_school_year_start: (pack.diary && pack.diary.grades) || [],
+    formative_assessments: (pack.diary && pack.diary.formatives) || [],
+    attendance_marks: (pack.diary && pack.diary.attendance) || [],
+    school_calendar: pack.events || [],
+    messages: (pack.messages || []).map((m) =>
       compact({
         date: m.date,
         time: m.time,
@@ -1553,36 +1835,42 @@ function aiContext(data, extraWeeks = {}, bodies = {}) {
         important: m.important,
         has_attachments: m.files,
         class_group: m.group,
-        body: clip(bodies[`${m.typeId}/${m.id}`], 3000),
+        body: clip(bodies[`${m.typeId}/${m.id}`], 1500),
       })
     ),
   };
 }
 
-function aiInstructions(ctx) {
+// The rules and the data come first and stay identical between questions, so OpenAI can cache them.
+function aiInstructions(ctx, gradeMax) {
+  const p = vilniusParts(new Date(), { hour: "2-digit", minute: "2-digit" });
+  const today = todayV();
   return [
     "You are the assistant inside Tamo+, an iPhone app a parent uses to follow their child's Lithuanian school e-diary (TAMO dienynas).",
-    "Answer ONLY from the TAMO data below. If the answer isn't there, say so plainly and, if useful, say where in TAMO to look. Never invent lessons, grades, homework, dates, teachers or messages.",
-    `Today is ${ctx.weekday} ${ctx.today}, local time ${ctx.time_now} (Europe/Vilnius). Resolve "today", "tomorrow", "this week" and "next school day" against that; weekends and dates in school_calendar have no lessons.`,
+    "Answer ONLY from the TAMO data below and from this conversation. If the answer isn't there, say so plainly and, if useful, say where in TAMO to look. Never invent lessons, grades, homework, dates, teachers or messages.",
     "Reply in the language of the user's latest question (Lithuanian or English). School content is in Lithuanian: quote subjects and tasks as written, and add a short translation when replying in English.",
     "Be brief and practical for a phone screen: lead with the answer, then short '- ' bullets with dates and subjects. You may use **bold**. No tables, no headings.",
-    "Grades are on a 1–10 scale. Attendance 'n' means absent, 'p' means late. Formative assessments can be percentages, +/- or words.",
-    "A message 'body' is only present for messages the parent opened in the app; for the others you know only date, sender and subject.",
+    `This school grades on a 1–${gradeMax} scale: ${gradeMax} is the best grade. Judge and compare grades and averages on that scale. Attendance 'n' means absent, 'p' means late. Formative assessments can be percentages, +/- or words.`,
+    "A message 'body' is included for messages that were already read; unread messages show only date, sender and subject.",
+    "Weekends and dates in school_calendar have no lessons.",
     "",
     "TAMO data (JSON):",
     JSON.stringify(ctx),
+    "",
+    `Now: ${weekdayOf(today)} ${today}, ${p.hour}:${p.minute} (Europe/Vilnius). Resolve "today", "tomorrow", "this week" and "next school day" against this.`,
   ].join("\n");
 }
 
-async function aiAsk(data, extraWeeks, bodies, history, question) {
+async function aiAsk(pack, opened, history, question, gradeMax) {
   if (!Keychain.contains(K.aiKey)) return { needKey: true };
   const req = new Request("https://api.openai.com/v1/responses");
   req.method = "POST";
-  req.timeoutInterval = 90;
+  req.timeoutInterval = 120;
   req.headers = { Authorization: `Bearer ${Keychain.get(K.aiKey)}`, "Content-Type": "application/json" };
   req.body = JSON.stringify({
     model: AI.MODEL,
-    instructions: aiInstructions(aiContext(data, extraWeeks, bodies)),
+    instructions: aiInstructions(aiContext(pack, opened, gradeMax), gradeMax),
+    // the whole conversation, every time, so nothing said earlier is forgotten
     input: [...history.map((m) => ({ role: m.role, content: m.text })), { role: "user", content: question }],
     reasoning: { effort: AI.REASONING },
     store: false, // don't keep the child's school data on OpenAI's side
@@ -1599,7 +1887,9 @@ async function aiAsk(data, extraWeeks, bodies, history, question) {
     return { needKey: true };
   }
   if (code === 429) throw new Error(t("aiQuota"));
-  if (code >= 400 || !res) throw new Error((res && res.error && res.error.message) || `OpenAI answered HTTP ${code}`);
+  const errMsg = (res && res.error && res.error.message) || "";
+  if (/context|too long|maximum.*tokens/i.test(errMsg)) throw new Error(t("aiTooLong"));
+  if (code >= 400 || !res) throw new Error(errMsg || `OpenAI answered HTTP ${code}`);
   let text = res.output_text || "";
   if (!text && Array.isArray(res.output)) {
     text = res.output
@@ -1641,13 +1931,46 @@ class App {
     this.wv = new WebView();
     this.busy = false;
     this.data = null;
-    this.chat = []; // {role: "user" | "assistant", text}
-    this.extraWeeks = {}; // weeks browsed beyond this and next week, for Ask
+    this.chatState = null; // {roleKey, history: [{role, text, at}], pack} — saved per child on this phone
     this.msgBodies = {}; // bodies of messages opened in this session, for Ask
   }
 
+  // The conversation for the child currently shown, loaded from the phone the first time it's needed.
+  chatFor(data) {
+    const key = data && data.child && data.child.key;
+    if (!key) return { v: 1, roleKey: "", history: [], pack: null };
+    if (!this.chatState || this.chatState.roleKey !== key) this.chatState = loadChat(key);
+    return this.chatState;
+  }
+
   page(data, extra = {}) {
-    return buildHTML({ ...data, chat: this.chat, hasAiKey: Keychain.contains(K.aiKey), ...extra });
+    const chat = this.chatFor(data);
+    return buildHTML({
+      ...data,
+      chat: chat.history.map((m) => ({ role: m.role, text: m.text })),
+      chatInfo: packInfo(chat.pack),
+      gradeMax: gradeMaxFor(data.child && data.child.key),
+      hasAiKey: Keychain.contains(K.aiKey),
+      ...extra,
+    });
+  }
+
+  async progress(stage) {
+    try {
+      await this.wv.evaluateJavaScript(`window.askProgress && window.askProgress(${safeJSON(stage)})`, false);
+    } catch (_) {}
+  }
+
+  // Pull everything into the chat once, then reuse it; re-pull when it's older than a few hours or on request.
+  async ensurePack(force = false) {
+    const data = this.data || readCache();
+    if (!data) throw new Error(t("aiNoData"));
+    const chat = this.chatFor(data);
+    const fresh = chat.pack && Date.now() - chat.pack.builtAt < AI.CONTEXT_MAX_AGE_H * 3600000 && chat.pack.today === todayV();
+    if (!force && fresh) return chat;
+    chat.pack = await gatherAll(this.api, data, (stage) => this.progress(stage));
+    saveChat(chat);
+    return chat;
   }
 
   async start() {
@@ -1724,7 +2047,7 @@ class App {
         case "week": {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(params.monday || "")) throw new Error("bad date");
           const days = await fetchWeek(this.api, params.monday);
-          this.extraWeeks[params.monday] = days;
+          if (this.chatState && this.chatState.pack) this.chatState.pack.weeks[params.monday] = days;
           return this.reply(q.id, true, days);
         }
         case "message": {
@@ -1739,16 +2062,28 @@ class App {
           await this.openFile(params);
           return this.reply(q.id, true, {});
         }
+        case "prepare": {
+          const chat = await this.ensurePack(!!params.force);
+          return this.reply(q.id, true, { info: packInfo(chat.pack) });
+        }
         case "ask": {
-          const question = String(params.q || "").trim().slice(0, 2000);
+          const question = String(params.q || "").trim().slice(0, 4000);
           if (!question) throw new Error("empty question");
-          const data = this.data || readCache();
-          if (!data) throw new Error(t("aiNoData"));
-          const history = this.chat.slice(-AI.HISTORY_TURNS * 2);
-          const r = await aiAsk(data, this.extraWeeks, this.msgBodies, history, question);
+          if (!Keychain.contains(K.aiKey)) return this.reply(q.id, false, "NEED_KEY");
+          const chat = await this.ensurePack(false);
+          const max = gradeMaxFor(chat.roleKey);
+          const r = await aiAsk(chat.pack, this.msgBodies, chat.history, question, max);
           if (r.needKey) return this.reply(q.id, false, "NEED_KEY");
-          this.chat.push({ role: "user", text: question }, { role: "assistant", text: r.answer });
-          return this.reply(q.id, true, r);
+          const at = Date.now();
+          chat.history.push({ role: "user", text: question, at }, { role: "assistant", text: r.answer, at: Date.now() });
+          saveChat(chat);
+          return this.reply(q.id, true, { answer: r.answer, info: packInfo(chat.pack) });
+        }
+        case "scale": {
+          const data = this.data || readCache();
+          await this.reply(q.id, true, {});
+          if (data && (await pickGradeScale(data.child.key, data.child.title))) await this.wv.loadHTML(this.page(data, { warnings: [], startTab: params.tab }));
+          return;
         }
         case "setkey": {
           const key = String(params.key || "").trim();
@@ -1756,9 +2091,14 @@ class App {
           Keychain.set(K.aiKey, key);
           return this.reply(q.id, true, {});
         }
-        case "newchat":
-          this.chat = [];
+        case "clearchat": {
+          const data = this.data || readCache();
+          if (data) {
+            deleteChat(data.child.key);
+            this.chatState = { v: 1, roleKey: data.child.key, history: [], pack: null };
+          }
           return this.reply(q.id, true, {});
+        }
         case "refresh":
           await this.reply(q.id, true, {});
           return this.reload();
@@ -1798,6 +2138,8 @@ class App {
     const actions = [];
     const session = this.api.session || (Keychain.contains(K.session) ? JSON.parse(Keychain.get(K.session)) : null);
     if (session && (session.roles || []).length > 1) actions.push(["switchChild", t("switchChild")]);
+    const cur = this.data || readCache();
+    if (cur) actions.push(["scale", `${t("scaleMenu")}: 1–${gradeMaxFor(cur.child.key)}`]);
     actions.push(["lang", t("language")], Keychain.contains(K.aiKey) ? ["aikeyRemove", t("aiKeyRemove")] : ["aikeyAdd", t("aiKeyAdd")]);
     actions.push(["web", t("openWeb")], ["login", t("changeLogin")], ["signout", t("signOut")]);
     actions.forEach(([, l]) => a.addAction(l));
@@ -1805,6 +2147,10 @@ class App {
     const i = await a.presentSheet();
     if (i < 0) return;
     const act = actions[i][0];
+    if (act === "scale") {
+      if (await pickGradeScale(cur.child.key, cur.child.title)) return this.wv.loadHTML(this.page(cur, { warnings: [] }));
+      return;
+    }
     if (act === "switchChild") {
       if (Keychain.contains(K.role)) Keychain.remove(K.role);
       forgetSession();
@@ -1839,7 +2185,8 @@ class App {
     }
     if (act === "signout") {
       [K.user, K.pass, K.role, K.session, K.aiKey].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
-      this.chat = [];
+      deleteAllChats();
+      this.chatState = null;
       clearCache();
       return this.wv.loadHTML(messageHTML(APP_NAME, t("signedOut")));
     }
