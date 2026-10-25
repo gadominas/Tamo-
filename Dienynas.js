@@ -1139,7 +1139,16 @@ function pageMain() {
     const nd = nextSchoolDay();
     if (nd) {
       const label = nd.date === addDays(D.today, 1) ? `${T.tomorrow}, ${T.wdLong[dow(nd.date)].toLowerCase()}` : longDate(nd.date);
-      const chips = nd.lessons.map((l) => `<span class="chip"><i style="background:${color(l.subject)}"></i>${h(l.subject)}${l.label ? ` <span class="pill red" style="margin:0">${h(l.label)}</span>` : ""}</span>`).join("");
+      // one chip per subject: double lessons would otherwise show twice; keep every distinct label
+      const subjects = new Map();
+      nd.lessons.forEach((l) => {
+        const k = (l.subject || "").trim();
+        if (!subjects.has(k)) subjects.set(k, new Set());
+        if (l.label) subjects.get(k).add(l.label);
+      });
+      const chips = [...subjects]
+        .map(([subj, labels]) => `<span class="chip"><i style="background:${color(subj)}"></i>${h(subj)}${[...labels].map((lb) => ` <span class="pill red" style="margin:0">${h(lb)}</span>`).join("")}</span>`)
+        .join("");
       const due = (D.homework || []).filter((i) => i.due === nd.date).sort(byDue);
       parts.push(section(T.prepFor(label), `<div class="panel"><div class="chips">${chips}</div>${due.length ? due.map(hwRow).join("") : ""}</div>`));
     }
@@ -1152,7 +1161,8 @@ function pageMain() {
 
     const checks = allDays()
       .filter((d) => d.date >= D.today)
-      .flatMap((d) => d.lessons.filter(isCheck).map((l) => ({ d, l })));
+      .flatMap((d) => d.lessons.filter(isCheck).map((l) => ({ d, l })))
+      .filter((x, i, all) => all.findIndex((y) => y.d.date === x.d.date && y.l.subject === x.l.subject && y.l.label === x.l.label) === i);
     if (checks.length) {
       parts.push(section(T.checks, panel(checks.map(({ d, l }) => `<div class="row"><span class="bar" style="background:${color(l.subject)}"></span><div class="main"><div class="title">${h(l.subject)}</div><div class="meta">${h(dayName(d.date))}${l.start ? ", " + h(l.start) : ""}</div><span class="pill red">${h(l.label)}</span>${l.topic ? `<div class="body">${h(l.topic)}</div>` : ""}</div></div>`), "")));
     }
