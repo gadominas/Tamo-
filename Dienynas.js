@@ -1933,6 +1933,179 @@ async function askKeyNative() {
   return true;
 }
 
+// ───────────────────────────── 🔔 what's new since the last run ─────────────────────────────
+//
+// Run with the parameter "check" (Shortcuts: Run Script → Parameter: check, or scriptable:///run/Dienynas?check=1)
+// to look for new homework, grades, messages and teacher notes. Inside the Scriptable app the news appears as an
+// alert; when Shortcuts runs the script in the background, iOS doesn't allow alerts, so it arrives as a notification.
+// The same text is also returned as the Shortcut output.
+
+const NEWS_MAX_KEYS = 1500; // remembered items per kind
+const MONTHS_SHORT = {
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  lt: ["sau.", "vas.", "kov.", "bal.", "geg.", "birž.", "liep.", "rugp.", "rugs.", "spal.", "lapkr.", "gruod."],
+};
+const NEWS_TEXT = {
+  en: {
+    title: (n) => `${n} new in TAMO`,
+    hw: "📝 Homework",
+    grades: "⭐ Grades",
+    msgs: "✉️ Messages",
+    notes: "🗒 Teacher notes",
+    due: (d) => `due ${d}`,
+    more: (n) => `+${n} more`,
+    nothing: "Nothing new since the last check.",
+    started: "Checking is set up. From now on you'll see anything new here.",
+    open: "Open",
+    ok: "OK",
+    signIn: "Open the script in Scriptable once to sign in.",
+    failed: (e) => `Couldn't check TAMO: ${e}`,
+    note: { praise: "Praise", remark: "Remark", comment: "Comment", absent: "Absent", late: "Late" },
+  },
+  lt: {
+    title: (n) => `TAMO naujienos: ${n}`,
+    hw: "📝 Namų darbai",
+    grades: "⭐ Pažymiai",
+    msgs: "✉️ Žinutės",
+    notes: "🗒 Mokytojų įrašai",
+    due: (d) => `iki ${d}`,
+    more: (n) => `ir dar ${n}`,
+    nothing: "Nuo paskutinio patikrinimo naujienų nėra.",
+    started: "Tikrinimas nustatytas. Nuo šiol čia matysite visas naujienas.",
+    open: "Atidaryti",
+    ok: "Gerai",
+    signIn: "Vieną kartą atidarykite skriptą Scriptable programoje ir prisijunkite.",
+    failed: (e) => `Nepavyko patikrinti TAMO: ${e}`,
+    note: { praise: "Pagyrimas", remark: "Pastaba", comment: "Komentaras", absent: "Praleido", late: "Pavėlavo" },
+  },
+};
+const NT = () => NEWS_TEXT[LANG()] || NEWS_TEXT.en;
+const shortDay = (d) => (d ? `${(MONTHS_SHORT[LANG()] || MONTHS_SHORT.en)[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8, 10))}` : "");
+
+function isCheckRun() {
+  const a = typeof args === "undefined" ? {} : args || {};
+  const qp = a.queryParameters || {};
+  const sp = a.shortcutParameter;
+  const plain = Array.isArray(a.plainTexts) ? a.plainTexts : [];
+  return "check" in qp || sp === "check" || (sp && typeof sp === "object" && "check" in sp) || plain.includes("check");
+}
+
+const seenPath = (roleKey) => fm.joinPath(fm.documentsDirectory(), `dienynas-plus-seen-${hashKey(roleKey)}.json`);
+function newsItems(data) {
+  const hw = (data.homework || []).map((i) => ({
+    key: i.lessonId ? `${i.lessonId}|${i.subject}|${i.due}` : `${i.subject}|${i.due}|${(i.text || "").slice(0, 40)}`,
+    line: `${i.subject}: ${clip(i.text || (i.files || []).map((f) => f.name).join(", "), 70)}${i.due ? ` (${NT().due(shortDay(i.due))})` : ""}`,
+  }));
+  const diary = data.diary || {};
+  const grades = [
+    ...(diary.grades || []).map((g) => ({ key: `g|${g.date}|${g.subject}|${g.value}|${g.type || ""}`, line: `${g.subject}: ${g.value}${g.type ? ` (${g.type})` : ""}, ${shortDay(g.date)}` })),
+    ...(diary.formatives || []).map((g) => ({ key: `f|${g.date}|${g.subject}|${g.value}|${g.type || ""}`, line: `${g.subject}: ${g.value}${g.type ? ` (${g.type})` : ""}, ${shortDay(g.date)}` })),
+  ];
+  const msgs = (data.messages || []).map((m) => ({ key: m.sid || `${m.typeId}/${m.id}`, line: `${m.subject || "—"}${m.from ? ` — ${m.from}` : ""}` }));
+  const notes = (data.feed || [])
+    .filter((f) => ["praise", "remark", "comment", "absent", "late"].includes(f.kind))
+    .map((f) => ({
+      key: `${f.kind}|${f.id}|${f.date}|${f.subject}`,
+      line: `${NT().note[f.kind]}: ${f.subject || ""}${f.text ? ` — ${clip(f.text, 60)}` : ""}${f.lessonDate || f.date ? `, ${shortDay(f.lessonDate || f.date)}` : ""}`,
+    }));
+  return { hw, grades, msgs, notes };
+}
+
+// Compares with what was seen last time and remembers the new state. First run only records a baseline.
+function findNews(data) {
+  const key = data.child && data.child.key;
+  if (!key) return { total: 0, first: false, kinds: {} };
+  const items = newsItems(data);
+  let seen = null;
+  try {
+    if (fm.fileExists(seenPath(key))) seen = JSON.parse(fm.readString(seenPath(key)));
+  } catch (_) {}
+  const kinds = {};
+  let total = 0;
+  for (const k of Object.keys(items)) {
+    const before = new Set((seen && seen[k]) || []);
+    kinds[k] = seen ? items[k].filter((i) => !before.has(i.key)) : [];
+    total += kinds[k].length;
+  }
+  const next = { at: Date.now() };
+  for (const k of Object.keys(items)) {
+    next[k] = [...new Set([...items[k].map((i) => i.key), ...((seen && seen[k]) || [])])].slice(0, NEWS_MAX_KEYS);
+  }
+  try {
+    fm.writeString(seenPath(key), JSON.stringify(next));
+  } catch (_) {}
+  return { total, first: !seen, kinds };
+}
+
+function newsText(news) {
+  const T = NT();
+  const blocks = [];
+  for (const [k, label] of [["hw", T.hw], ["grades", T.grades], ["msgs", T.msgs], ["notes", T.notes]]) {
+    const list = news.kinds[k] || [];
+    if (!list.length) continue;
+    const lines = list.slice(0, 5).map((i) => `• ${i.line}`);
+    if (list.length > 5) lines.push(`  ${T.more(list.length - 5)}`);
+    blocks.push(`${label} (${list.length})\n${lines.join("\n")}`);
+  }
+  return blocks.join("\n\n");
+}
+
+async function showNewsAlert(news, data, withOpen) {
+  const a = new Alert();
+  a.title = `${NT().title(news.total)}${data.child && data.child.title ? `\n${data.child.title}` : ""}`;
+  a.message = newsText(news);
+  if (withOpen) a.addAction(NT().open);
+  a.addCancelAction(NT().ok);
+  return (await a.presentAlert()) === 0 && withOpen;
+}
+
+async function notify(title, body) {
+  try {
+    const n = new Notification();
+    n.title = title;
+    n.body = body;
+    n.threadIdentifier = "dienynas-plus-news";
+    n.openURL = URLScheme.forRunningScript();
+    n.sound = "default";
+    await n.schedule();
+  } catch (_) {}
+}
+
+async function runCheck() {
+  const T = NT();
+  const inApp = config.runsInApp;
+  const say = async (msg) => {
+    Script.setShortcutOutput(msg);
+    if (inApp) {
+      const a = new Alert();
+      a.title = APP_NAME;
+      a.message = msg;
+      a.addAction(T.ok);
+      await a.presentAlert();
+    }
+  };
+  if (!Keychain.contains(K.user) || !Keychain.contains(K.pass)) {
+    if (!inApp) await notify(APP_NAME, T.signIn);
+    return say(T.signIn);
+  }
+  let data;
+  try {
+    data = await loadAll(new Tamo(inApp));
+    saveCache(data);
+  } catch (e) {
+    const msg = T.failed(e.message || String(e));
+    if (!inApp && e && e.badLogin) await notify(APP_NAME, msg); // offline hiccups stay quiet in the background
+    return say(msg);
+  }
+  const news = findNews(data);
+  if (news.first) return say(T.started);
+  if (!news.total) return say(T.nothing);
+  const body = newsText(news);
+  Script.setShortcutOutput(`${T.title(news.total)}\n\n${body}`);
+  if (!inApp) return notify(`${T.title(news.total)}${data.child.title ? ` · ${data.child.title}` : ""}`, body);
+  if (await showNewsAlert(news, data, true)) await new App().start(data);
+}
+
 // ───────────────────────────── app controller ─────────────────────────────
 
 class App {
@@ -1983,13 +2156,14 @@ class App {
     return chat;
   }
 
-  async start() {
+  // `fresh` is data a check run just loaded: show it straight away without loading again.
+  async start(fresh = null) {
     this.wv.shouldAllowRequest = (req) => this.route(req);
-    const cached = readCache();
+    const cached = fresh || readCache();
     this.data = cached;
     await this.wv.loadHTML(cached ? this.page(cached, { warnings: [] }) : messageHTML(APP_NAME, LANG() === "lt" ? "Įkeliama…" : "Loading…"));
     const shown = this.wv.present(true);
-    await this.reload();
+    if (!fresh) await this.reload(true);
     await shown;
   }
 
@@ -2006,7 +2180,7 @@ class App {
     return true;
   }
 
-  async reload() {
+  async reload(announce = false) {
     if (this.busy) return;
     this.busy = true;
     try {
@@ -2014,6 +2188,11 @@ class App {
       saveCache(data);
       this.data = data;
       await this.wv.loadHTML(this.page(data));
+      // pop up anything new since the last run (scheduled check or app launch)
+      if (announce) {
+        const news = findNews(data);
+        if (news.total) await showNewsAlert(news, data, false);
+      }
     } catch (e) {
       if (e && e.badLogin) {
         await this.wv.loadHTML(
@@ -2196,6 +2375,11 @@ class App {
     if (act === "signout") {
       [K.user, K.pass, K.role, K.session, K.aiKey].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
       deleteAllChats();
+      try {
+        fm.listContents(fm.documentsDirectory())
+          .filter((n) => /^dienynas-plus-seen-.*\.json$/.test(n))
+          .forEach((n) => fm.remove(fm.joinPath(fm.documentsDirectory(), n)));
+      } catch (_) {}
       this.chatState = null;
       clearCache();
       return this.wv.loadHTML(messageHTML(APP_NAME, t("signedOut")));
@@ -2267,6 +2451,7 @@ async function runWidget() {
 
 async function main() {
   if (config.runsInWidget) return runWidget();
+  if (isCheckRun()) return runCheck();
   if (!Keychain.contains(K.user) || !Keychain.contains(K.pass)) {
     if (!(await askCredentials())) return;
   }

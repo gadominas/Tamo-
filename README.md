@@ -107,6 +107,7 @@ It uses the OpenAI Responses API (`gpt-5.4-mini`, low reasoning effort), the sam
 - **Dark mode** follows the iPhone setting.
 - **Several children on one account:** the app asks whose diary to show and remembers the choice; switch any time from the ••• menu.
 - **Home-screen widget** with the current or next lesson, homework due tomorrow and today's messages. Tapping it opens the app.
+- **🔔 Scheduled checks** for new homework, grades, messages and teacher notes, shown as a popup alert or a notification (see below).
 - **Works offline.** The last loaded data is shown straight away and refreshed in the background. If TAMO can't be reached, the saved data stays on screen with a note saying when it's from.
 - Behaves like a native app: no pinch or double-tap zoom.
 
@@ -119,6 +120,31 @@ It uses the OpenAI Responses API (`gpt-5.4-mini`, low reasoning effort), the sam
 5. Optional widget: long-press the home screen, add a **Scriptable** widget (small or medium), edit it, and choose **Dienynas** as the script.
 
 To update, replace the script's contents with the latest `Dienynas.js`.
+
+## 🔔 Scheduled checks: get told about anything new
+
+Run the script on a schedule and it tells you what's new since the last check:
+
+- 📝 new homework
+- ⭐ new grades and formative assessments
+- ✉️ new messages
+- 🗒 teacher notes: praise, remarks, comments, absences and late marks
+
+**If the script runs in the Scriptable app**, the news appears as a **popup alert** with an **Open** button. **If Shortcuts runs it in the background**, iOS doesn't allow alerts, so the same list arrives as a **notification**; tapping it opens the app. The text is also returned as the Shortcut output, so a **Show Alert** or **Show Result** action can display it too.
+
+Opening the app normally also pops up anything new that arrived since the last run. Nothing is repeated: once an item has been shown, it won't come up again. The very first check only records what's already there.
+
+**Set it up in Shortcuts:**
+
+1. Open **Shortcuts** → **Automation** → **+** → **Time of Day** (for example 15:00 and 20:00 on school days) → **Run Immediately**.
+2. Add the action **Scriptable › Run Script**, choose **Dienynas**, and set **Parameter** to `check`.
+3. Choose how you want to see the news:
+   - **Run In App** on: Scriptable opens and shows the popup alert.
+   - **Run In App** off: it runs silently in the background and sends a notification. Allow notifications for Scriptable when iOS asks.
+
+You can also start a check from a link or another app: `scriptable:///run/Dienynas?check=1`.
+
+Checks cover the child currently selected in the app. Network hiccups in the background are kept quiet; you'll only get a notification about a failure when TAMO rejects the sign-in.
 
 ## How it works
 
@@ -145,7 +171,7 @@ Everything is in one file. The data layer runs in Scriptable; the interface is a
 - **✨ Ask sends the school data to OpenAI** with each question: lessons, homework, classwork, grades, attendance, notices, the calendar, message headers and the text of already-read messages, plus the conversation so far. The child's name isn't sent. Requests are made with `store: false`, so OpenAI doesn't keep them for later retrieval. If you don't add an OpenAI key, nothing is ever sent to OpenAI.
 - Your OpenAI key is stored only in the iOS Keychain and sent only to OpenAI.
 - The Ask conversation and the data gathered for it are saved in Scriptable's local documents folder, one file per child. **Clear memory** deletes that child's file.
-- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the OpenAI key, the session, the cache and all saved conversations.
+- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the OpenAI key, the session, the cache, all saved conversations and the record of what's already been shown.
 - Dienynas+ is **read-only** with one exception, the same as the official app: **opening a message marks it as read** in TAMO.
 
 ## Limitations
