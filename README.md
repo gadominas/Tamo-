@@ -13,6 +13,34 @@ The official TAMO website and app spread the important things across many screen
 
 > Screenshots use made-up sample data. No real pupil, teacher or school appears in them.
 
+## Install
+
+You need an iPhone with [Scriptable](https://apps.apple.com/app/scriptable/id1405459188) (free) and a TAMO parent or pupil login.
+
+1. In Scriptable, tap **+**, paste the installer below and tap ▶︎. It downloads the latest Dienynas into Scriptable.
+2. Tap **Open Dienynas** and sign in with your TAMO username and password. They're kept in the iOS Keychain.
+
+```js
+const req = new Request("https://raw.githubusercontent.com/gadominas/Tamo-/master/Dienynas.js");
+const code = await req.loadString();
+if (req.response.statusCode !== 200 || !code.includes("Dienynas+")) throw new Error("Download failed, try again");
+let fm = FileManager.local();
+try { const ic = FileManager.iCloud(); if (ic.fileExists(ic.joinPath(ic.documentsDirectory(), Script.name() + ".js"))) fm = ic; } catch (e) {}
+fm.writeString(fm.joinPath(fm.documentsDirectory(), "Dienynas.js"), code);
+Safari.open("scriptable:///run/Dienynas");
+```
+
+**Update:** run the installer again. Sign-in, settings and chat history are kept. (The same installer with friendlier messages is in [`install.js`](install.js).)
+
+**Optional extras**
+
+| | How |
+| --- | --- |
+| Home-screen widget | Add a **Scriptable** widget, edit it, choose **Dienynas**. |
+| ✨ Ask | Paste an [OpenAI API key](https://platform.openai.com/api-keys) the first time you ask. |
+| 🔔 New-items alerts | Shortcuts automation running **Dienynas** with parameter `check`. [Setup](#-scheduled-checks-get-told-about-anything-new) |
+| 1–7 grading | Grades tab → **Scale 1–10** → pick 1–7. |
+
 ## Key features
 
 ### Today: the whole school day on one screen
@@ -110,16 +138,6 @@ It uses the OpenAI Responses API (`gpt-5.4-mini`, low reasoning effort), the sam
 - **🔔 Scheduled checks** for new homework, grades, messages and teacher notes, shown as a popup alert or a notification (see below).
 - **Works offline.** The last loaded data is shown straight away and refreshed in the background. If TAMO can't be reached, the saved data stays on screen with a note saying when it's from.
 - Behaves like a native app: no pinch or double-tap zoom.
-
-## Install
-
-1. Install [Scriptable](https://apps.apple.com/app/scriptable/id1405459188) from the App Store.
-2. In Scriptable, tap **+**, name the script `Dienynas`, and paste in the contents of [`Dienynas.js`](Dienynas.js).
-3. Run it and sign in with your TAMO username and password.
-4. Optional, for ✨ Ask: an OpenAI API key from [platform.openai.com](https://platform.openai.com/api-keys). Paste it the first time you ask a question.
-5. Optional widget: long-press the home screen, add a **Scriptable** widget (small or medium), edit it, and choose **Dienynas** as the script.
-
-To update, replace the script's contents with the latest `Dienynas.js`.
 
 ## 🔔 Scheduled checks: get told about anything new
 
