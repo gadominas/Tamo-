@@ -1,0 +1,126 @@
+{
+  "name": "Dienynas+",
+  "appId": "dienynasplus",
+  "script": "Dienynas.js",
+  "releases": [
+    {
+      "version": "1.4.0",
+      "date": "2026-10-27",
+      "title": "Never miss an update",
+      "lt": { "title": "Nepraleiskite atnaujinimų" },
+      "highlights": [
+        { "icon": "🔔", "title": "Update reminders", "text": "The app tells you when a new version is out, and waits two days if you tap Later.",
+          "lt": { "title": "Priminimai apie atnaujinimus", "text": "Programa praneša apie naują versiją, o paspaudus „Vėliau“ palaukia dvi dienas." } },
+        { "icon": "⬆️", "title": "One-tap update", "text": "Update right from the app. No need to run the installer again.",
+          "lt": { "title": "Atnaujinimas vienu paspaudimu", "text": "Atnaujinkite tiesiai programoje, be diegimo skripto." } },
+        { "icon": "✨", "title": "See what's new first", "text": "Every update shows its three best features before you install it.",
+          "lt": { "title": "Pirmiausia – kas naujo", "text": "Prieš diegiant matote tris svarbiausias naujoves." } }
+      ],
+      "changes": [
+        "Update check on start, with an update sheet showing the release's three highlights",
+        "Later, or tapping outside the sheet, snoozes the offer for two days (CONFIG.CHECK_UPDATES turns checks off)",
+        "Update now downloads the script over the running one after checking it's this app and actually newer",
+        "Version shown at the bottom of every screen",
+        "releases.json as the single source of release notes; CHANGELOG.md generated from it by tools/changelog.js",
+        "install.js installer and a shorter Install section near the top of the README"
+      ],
+      "fixes": []
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-10-25",
+      "title": "Know the moment something's new",
+      "lt": { "title": "Sužinokite apie naujienas iš karto" },
+      "highlights": [
+        { "icon": "🔔", "title": "New-items alerts", "text": "Scheduled checks tell you about new homework, grades, messages and teacher notes.",
+          "lt": { "title": "Pranešimai apie naujienas", "text": "Suplanuoti patikrinimai praneša apie naujus namų darbus, pažymius, žinutes ir įrašus." } },
+        { "icon": "💬", "title": "Popup or notification", "text": "See news as a popup in Scriptable, or as a notification in the background.",
+          "lt": { "title": "Iššokantis langas arba pranešimas", "text": "Naujienos rodomos Scriptable lange arba kaip pranešimas fone." } },
+        { "icon": "🙈", "title": "No repeats", "text": "Each item is shown once, and the first check only records what's already there.",
+          "lt": { "title": "Be pasikartojimų", "text": "Kiekviena naujiena parodoma vieną kartą, o pirmas patikrinimas tik įsimena esamas." } }
+      ],
+      "changes": [
+        "Run with the parameter check (Shortcuts) or ?check=1 to look for new homework, grades, messages and teacher notes",
+        "Popup alert inside Scriptable, notification in the background, same text as the Shortcut output",
+        "Opening the app also pops up anything new since the last run"
+      ],
+      "fixes": []
+    },
+    {
+      "version": "1.2.1",
+      "date": "2026-10-25",
+      "title": "A tidier Today screen",
+      "lt": { "title": "Tvarkingesnis „Šiandien“ ekranas" },
+      "highlights": [
+        { "icon": "🎒", "title": "One chip per subject", "text": "Double lessons no longer show the same subject twice under Get ready.",
+          "lt": { "title": "Vienas dalykas – vienas ženkliukas", "text": "Dvigubos pamokos nebesidubliuoja skiltyje „Pasiruošti“." } },
+        { "icon": "🏷️", "title": "Labels kept", "text": "Test and project labels stay on the subject's single chip.",
+          "lt": { "title": "Žymos išlieka", "text": "Kontrolinių ir projektų žymos lieka prie dalyko." } },
+        { "icon": "📋", "title": "Cleaner tests list", "text": "Upcoming tests appear once, even when marked on both lessons of a double.",
+          "lt": { "title": "Tvarkingas atsiskaitymų sąrašas", "text": "Atsiskaitymai rodomi vieną kartą, net jei pažymėti abiejose pamokose." } }
+      ],
+      "changes": [],
+      "fixes": [
+        "Get ready for…: duplicate subject chips from double lessons",
+        "Tests and checks ahead: duplicate entries for the same subject and label on one day"
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "date": "2026-10-25",
+      "title": "Ask knows everything, and remembers",
+      "lt": { "title": "„Klausk“ žino viską ir prisimena" },
+      "highlights": [
+        { "icon": "🧠", "title": "Ask pulls everything", "text": "A chat starts with all homework, grades and attendance since 1 September.",
+          "lt": { "title": "Visi duomenys pokalbyje", "text": "Pokalbis prasideda su visais namų darbais, pažymiais ir lankomumu nuo rugsėjo 1 d." } },
+        { "icon": "💾", "title": "Remembers the chat", "text": "Follow-up questions work, and the conversation is still there tomorrow.",
+          "lt": { "title": "Prisimena pokalbį", "text": "Galite klausti toliau, o pokalbis išlieka ir kitą dieną." } },
+        { "icon": "🔢", "title": "1–7 grade scale", "text": "Pick each child's grading scale so averages and Ask judge grades correctly.",
+          "lt": { "title": "Skalė 1–7", "text": "Kiekvienam vaikui pasirinkite vertinimo skalę, kad vidurkiai būtų teisingi." } }
+      ],
+      "changes": [
+        "Ask gathers 5 weeks of lessons, homework and grades since 1 September, classwork, calendar, notices and messages",
+        "Whole conversation sent with every question and saved per child on the phone",
+        "Clear memory button (tap twice) and Refresh data",
+        "Grade scale per child (1–10, 1–7, 1–5 or custom) from the Grades tab or the ••• menu"
+      ],
+      "fixes": []
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-10-23",
+      "title": "Ask about the school week",
+      "lt": { "title": "Klauskite apie mokyklos savaitę" },
+      "highlights": [
+        { "icon": "✨", "title": "Ask in your words", "text": "Ask what's due, which tests are coming or what the school wrote.",
+          "lt": { "title": "Klauskite savais žodžiais", "text": "Klauskite, ką reikia atlikti, kokie kontroliniai artėja ar ką rašė mokykla." } },
+        { "icon": "🔒", "title": "Your key stays put", "text": "Your OpenAI key is saved once in the iPhone Keychain, only sent to OpenAI.",
+          "lt": { "title": "Raktas saugus", "text": "OpenAI raktas saugomas iPhone Keychain ir siunčiamas tik į OpenAI." } },
+        { "icon": "🗣️", "title": "Lithuanian or English", "text": "Answers come in the language you ask in, quoting school text as written.",
+          "lt": { "title": "Lietuviškai arba angliškai", "text": "Atsakoma ta kalba, kuria klausiate, mokyklos tekstą cituojant tiksliai." } }
+      ],
+      "changes": ["✨ Ask chat screen with suggested questions, using the OpenAI Responses API"],
+      "fixes": []
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-10-23",
+      "title": "First release",
+      "lt": { "title": "Pirmoji versija" },
+      "highlights": [
+        { "icon": "📅", "title": "Today on one screen", "text": "Current lesson, what to prepare for tomorrow, homework due and today's messages.",
+          "lt": { "title": "Diena viename ekrane", "text": "Dabartinė pamoka, ką paruošti rytojui, namų darbai ir šiandienos žinutės." } },
+        { "icon": "📝", "title": "Homework by due date", "text": "All homework grouped by due date, with overdue work marked.",
+          "lt": { "title": "Namų darbai pagal terminą", "text": "Visi namų darbai sugrupuoti pagal terminą, vėluojantys pažymėti." } },
+        { "icon": "✉️", "title": "Messages per day", "text": "A 7-day chart of messages, grouped by day, with unread ones highlighted.",
+          "lt": { "title": "Žinutės pagal dienas", "text": "7 dienų žinučių grafikas ir sąrašas pagal dienas, neperskaitytos išskirtos." } }
+      ],
+      "changes": [
+        "Today, Schedule, Homework, Messages and Grades screens, Lithuanian and English, light and dark",
+        "Home-screen widget, offline cache, several children on one account",
+        "Credentials kept in the iOS Keychain"
+      ],
+      "fixes": []
+    }
+  ]
+}

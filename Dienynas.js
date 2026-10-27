@@ -23,6 +23,18 @@ const APP_GUID = "1166cfd3-1be5-4dca-aa64-5aff7bbb8acc"; // build constant the o
 const SESSION_TTL_MIN = 25;
 const WIDGET_CACHE_MIN = 30;
 
+const CONFIG = {
+  CHECK_UPDATES: true,   // offer new versions from GitHub (asks again 2 days after "Later")
+};
+
+// This build's version. When releasing, bump it and add a matching entry to releases.json.
+const VERSION = '1.4.0';
+const APP_ID = 'dienynasplus';   // unique per app, never changes
+const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
+const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
+const UPDATE_SNOOZE_MS = 2 * 24 * 3600 * 1000;   // "Later" = 2 days
+const KC_UPDATE_SNOOZE = 'dienynasplus-update-snooze';   // Keychain key, unique per app
+
 const K = {
   user: "dienynasplus.username",
   pass: "dienynasplus.password",
@@ -862,6 +874,22 @@ footer{color:var(--faint);font-size:12.5px;text-align:center;margin:22px 0 8px}
 .mem-a{display:flex;gap:18px;margin-top:8px}
 .lnk{color:var(--blue);font-weight:600;font-size:14px}
 .lnk.red{color:var(--red)}
+#upd{position:fixed;inset:0;z-index:48;background:rgba(0,0,0,.55);display:flex;align-items:flex-end}
+.updp{width:100%;max-height:92vh;overflow:auto;background:var(--card);color:var(--ink);border-radius:22px 22px 0 0;padding:20px 18px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+.updtag{align-self:flex-start;background:var(--blue);color:var(--paper);font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px}
+.updt{margin:6px 0 0;font:800 22px/1.2 ui-rounded,"SF Pro Rounded",-apple-system,sans-serif}
+.upds{color:var(--muted);font-size:14px}
+.updl{display:flex;flex-direction:column;gap:10px;margin:8px 0 6px}
+.updi{display:flex;gap:12px;align-items:flex-start;background:var(--chip);border-radius:14px;padding:12px}
+.updic{font-size:24px;line-height:1.1;flex:none}
+.updi b{display:block;font-size:15px}
+.updi span{display:block;color:var(--muted);font-size:13px;line-height:1.35;margin-top:2px}
+.updmsg{font-size:15px}
+.updmsg:empty{display:none}
+.updgo{padding:13px;font-size:16px;font-weight:700;border-radius:14px;background:var(--blue);color:var(--paper)}
+.updgo:disabled{opacity:.6}
+.updlater{padding:11px;font-size:15px;font-weight:600;border-radius:14px;background:var(--chip);color:inherit}
+.ver{display:block;margin-top:2px}
 .keycard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;font-size:15px}
 .keycard p{margin:0 0 10px;color:var(--muted)}
 .keyrow{display:flex;gap:8px}
@@ -920,6 +948,12 @@ function pageMain() {
       gathering: "Pulling everything from TAMO…", gatherFailed: (e) => `Couldn't pull the data: ${e}`,
       stages: { schedule: "Lessons", homework: "Homework", grades: "Grades and attendance", calendar: "School calendar", messages: "Messages" },
       scaleLbl: (m) => `Scale 1–${m}`,
+      upd: {
+        tag: (v) => `New version ${v}`, title: "An update is ready", more: (n) => ` (and ${n} more update${n > 1 ? "s" : ""})`,
+        have: (cur, more) => `You have ${cur}${more}. Here’s what you get:`, now: "Update now", later: "Later, remind me in 2 days",
+        updating: "Updating…", done: (v) => `Updated to ${v}`, doneMsg: "<b>✓ Done.</b> Close the app and open it again to start using the new version.",
+        gotIt: "Got it", retry: "Try again", failed: "Update failed",
+      },
     },
     lt: {
       tabs: ["Šiandien", "Tvarkaraštis", "Namų darbai", "Žinutės", "Pažymiai"],
@@ -959,6 +993,12 @@ function pageMain() {
       gathering: "Renkami visi TAMO duomenys…", gatherFailed: (e) => `Nepavyko surinkti duomenų: ${e}`,
       stages: { schedule: "Pamokos", homework: "Namų darbai", grades: "Pažymiai ir lankomumas", calendar: "Mokyklos kalendorius", messages: "Žinutės" },
       scaleLbl: (m) => `Skalė 1–${m}`,
+      upd: {
+        tag: (v) => `Nauja versija ${v}`, title: "Atnaujinimas paruoštas", more: (n) => ` (ir dar atnaujinimų: ${n})`,
+        have: (cur, more) => `Jūsų versija ${cur}${more}. Kas naujo:`, now: "Atnaujinti dabar", later: "Vėliau, priminti po 2 dienų",
+        updating: "Atnaujinama…", done: (v) => `Atnaujinta į ${v}`, doneMsg: "<b>✓ Atlikta.</b> Uždarykite programą ir atidarykite iš naujo, kad pradėtumėte naudoti naują versiją.",
+        gotIt: "Supratau", retry: "Bandyti dar kartą", failed: "Nepavyko atnaujinti",
+      },
     },
   };
   const T = LANGS[D.lang] || LANGS.en;
@@ -1405,6 +1445,70 @@ function pageMain() {
     if (S.tab === 5) setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 30);
   }
 
+  // ── update sheet: shown when the Scriptable side finds a newer version on GitHub ──
+  window.__showUpdate = (u) => {
+    if (!u || document.getElementById("upd")) return;
+    const U = T.upd;
+    const lt = D.lang === "lt";
+    const ov = document.createElement("div");
+    ov.id = "upd";
+    const cards = (u.highlights || [])
+      .map((x) => {
+        const title = (lt && x.lt && x.lt.title) || x.title;
+        const text = (lt && x.lt && x.lt.text) || x.text || "";
+        return `<div class="updi"><span class="updic">${h(x.icon || "✨")}</span><div><b>${h(title)}</b><span>${h(text)}</span></div></div>`;
+      })
+      .join("");
+    const more = u.skipped > 1 ? U.more(u.skipped - 1) : "";
+    ov.innerHTML = `<div class="updp" role="dialog" aria-label="${h(U.title)}">
+      <div class="updtag">${h(U.tag(u.latest))}</div>
+      <h2 class="updt">${h((lt && u.titleLt) || u.title || U.title)}</h2>
+      <div class="upds">${h(U.have(u.current, more))}</div>
+      <div class="updl">${cards}</div>
+      <div class="updmsg" aria-live="polite"></div>
+      <button class="updgo" data-act="upd-now">${h(U.now)}</button>
+      <button class="updlater" data-act="upd-later">${h(U.later)}</button></div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (e.target === ov) return updLater(); // outside = Later
+      const b = e.target.closest("[data-act]");
+      if (!b) return;
+      if (b.dataset.act === "upd-now") updNow(b);
+      else if (b.dataset.act === "upd-later") updLater();
+      else if (b.dataset.act === "upd-close") ov.remove();
+    });
+  };
+  function updLater() {
+    const ov = document.getElementById("upd");
+    if (!ov) return;
+    ov.remove();
+    call("update-later").catch(() => {});
+  }
+  async function updNow(btn) {
+    const U = T.upd;
+    const ov = document.getElementById("upd");
+    const msg = ov.querySelector(".updmsg");
+    const later = ov.querySelector(".updlater");
+    btn.disabled = true;
+    btn.textContent = U.updating;
+    later.hidden = true;
+    msg.textContent = "";
+    try {
+      const v = await call("update-now", {}, 90000);
+      ov.querySelector(".updtag").textContent = U.done(v);
+      msg.innerHTML = U.doneMsg;
+      btn.disabled = false;
+      btn.textContent = U.gotIt;
+      btn.dataset.act = "upd-close";
+    } catch (e) {
+      msg.textContent = e.message || U.failed;
+      btn.disabled = false;
+      btn.textContent = U.retry;
+      later.hidden = false;
+    }
+  }
+
   // ── chrome ──
   const ICONS = [
     '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
@@ -1434,7 +1538,7 @@ function pageMain() {
       .join("")}</nav>`;
     const t = new Date(D.at);
     const updated = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-    $("#app").innerHTML = `${head}<main>${banners.join("")}${screens[S.tab]()}${S.tab === 5 ? "" : `<footer>${h(T.updated(updated))}</footer>`}</main>${tabs}`;
+    $("#app").innerHTML = `${head}<main>${banners.join("")}${screens[S.tab]()}${S.tab === 5 ? "" : `<footer>${h(T.updated(updated))}<span class="ver">Dienynas+ v${h(D.version || "")}</span></footer>`}</main>${tabs}`;
     if ($("#q") && draft) $("#q").value = draft;
   }
 
@@ -1565,6 +1669,7 @@ function pageMain() {
   });
 
   render();
+  if (D.update) window.__showUpdate(D.update);
   // keep the "now" card honest while the app stays open
   setInterval(() => {
     if (S.tab === 0 && !document.body.classList.contains("open-sheet")) render();
@@ -1572,7 +1677,7 @@ function pageMain() {
 }
 
 function buildHTML(data) {
-  const payload = { ...data, lang: LANG() };
+  const payload = { ...data, lang: LANG(), version: VERSION };
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>${CSS}</style>${NO_ZOOM}</head><body>
@@ -2106,6 +2211,85 @@ async function runCheck() {
   if (await showNewsAlert(news, data, true)) await new App().start(data);
 }
 
+// ───────────────────────────── ⬆️ in-app updates (releases.json on GitHub) ─────────────────────────────
+
+// Compares "1.10.0" and "1.9.2" as numbers: returns 1, 0 or -1.
+function cmpVer(a, b) {
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+async function checkForUpdate() {
+  if (!CONFIG.CHECK_UPDATES || updateSnoozed()) return null;
+  try {
+    const req = new Request(`${REPO_RAW}releases.json?t=${Date.now()}`);
+    req.timeoutInterval = 10;
+    const data = await req.loadJSON();
+    if (!data || !Array.isArray(data.releases)) return null;
+    const newer = data.releases
+      .filter(r => r && r.version && cmpVer(r.version, VERSION) > 0)
+      .sort((x, y) => cmpVer(y.version, x.version));
+    if (!newer.length) return null;
+    // The newest release's highlights first, topped up from older versions the user skipped.
+    const highlights = [];
+    newer.forEach(r => (r.highlights || []).forEach(h => {
+      if (highlights.length < 3 && h && h.title) highlights.push(h);
+    }));
+    return {
+      current: VERSION, latest: newer[0].version, title: newer[0].title || '',
+      titleLt: (newer[0].lt && newer[0].lt.title) || '',
+      skipped: newer.length, highlights, script: data.script || SCRIPT_FILE,
+    };
+  } catch (e) {
+    console.log('Update check skipped: ' + e);
+    return null;
+  }
+}
+
+function updateSnoozed() {
+  try {
+    return Keychain.contains(KC_UPDATE_SNOOZE) && Date.now() < +Keychain.get(KC_UPDATE_SNOOZE);
+  } catch (e) { return false; }
+}
+
+function snoozeUpdate() {
+  Keychain.set(KC_UPDATE_SNOOZE, String(Date.now() + UPDATE_SNOOZE_MS));
+}
+
+function clearUpdateSnooze() {
+  if (Keychain.contains(KC_UPDATE_SNOOZE)) Keychain.remove(KC_UPDATE_SNOOZE);
+}
+
+async function applyUpdate(info) {
+  const req = new Request(`${REPO_RAW}${encodeURI((info && info.script) || SCRIPT_FILE)}?t=${Date.now()}`);
+  req.timeoutInterval = 30;
+  const code = await req.loadString();
+  const okStatus = req.response && req.response.statusCode === 200;
+  const m = code && code.match(/const VERSION = '([^']+)'/);
+  // 1. A real script for THIS app, not an error page or another project's file
+  if (!okStatus || !m || !code.includes(`const APP_ID = '${APP_ID}'`)) {
+    throw new Error(LANG() === 'lt' ? 'Atsisiųstas failas atrodo netinkamas. Bandykite vėliau.' : "The download didn't look right. Try again later.");
+  }
+  // 2. Actually newer: GitHub's cache can serve the old file for a few minutes after a release
+  if (cmpVer(m[1], VERSION) <= 0) {
+    throw new Error(LANG() === 'lt' ? 'GitHub dar rodo seną versiją. Bandykite po kelių minučių.' : 'GitHub is still serving the old version. Try again in a few minutes.');
+  }
+  // 3. Write it where the running script lives (iCloud or on the phone)
+  const path = module.filename;
+  let fm = FileManager.local();
+  try {
+    const ic = FileManager.iCloud();
+    if (path.startsWith(ic.documentsDirectory())) fm = ic;
+  } catch (e) {}
+  fm.writeString(path, code);
+  return m[1];   // the version now installed
+}
+
 // ───────────────────────────── app controller ─────────────────────────────
 
 class App {
@@ -2116,6 +2300,13 @@ class App {
     this.data = null;
     this.chatState = null; // {roleKey, history: [{role, text, at}], pack} — saved per child on this phone
     this.msgBodies = {}; // bodies of messages opened in this session, for Ask
+    this.pendingUpdate = null; // newer version found on GitHub, offered until answered
+    this.updateChecked = false;
+  }
+
+  offerUpdate() {
+    if (!this.pendingUpdate) return;
+    this.wv.evaluateJavaScript(`window.__showUpdate && window.__showUpdate(${safeJSON(this.pendingUpdate)})`, false).catch(() => {});
   }
 
   // The conversation for the child currently shown, loaded from the phone the first time it's needed.
@@ -2134,6 +2325,7 @@ class App {
       chatInfo: packInfo(chat.pack),
       gradeMax: gradeMaxFor(data.child && data.child.key),
       hasAiKey: Keychain.contains(K.aiKey),
+      update: this.pendingUpdate, // re-offered after every reload of the main page, until answered
       ...extra,
     });
   }
@@ -2163,6 +2355,14 @@ class App {
     this.data = cached;
     await this.wv.loadHTML(cached ? this.page(cached, { warnings: [] }) : messageHTML(APP_NAME, LANG() === "lt" ? "Įkeliama…" : "Loading…"));
     const shown = this.wv.present(true);
+    // Once per run, after the first screen has rendered, so it never slows the start.
+    if (!this.updateChecked) {
+      this.updateChecked = true;
+      checkForUpdate().then((u) => {
+        this.pendingUpdate = u;
+        this.offerUpdate();
+      });
+    }
     if (!fresh) await this.reload(true);
     await shown;
   }
@@ -2233,6 +2433,16 @@ class App {
     } catch (_) {}
     try {
       switch (action) {
+        case "update-later":
+          snoozeUpdate();
+          this.pendingUpdate = null;
+          return this.reply(q.id, true, {});
+        case "update-now": {
+          const v = await applyUpdate(this.pendingUpdate);
+          this.pendingUpdate = null;
+          clearUpdateSnooze();
+          return this.reply(q.id, true, v);
+        }
         case "week": {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(params.monday || "")) throw new Error("bad date");
           const days = await fetchWeek(this.api, params.monday);

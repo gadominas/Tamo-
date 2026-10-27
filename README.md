@@ -30,7 +30,7 @@ fm.writeString(fm.joinPath(fm.documentsDirectory(), "Dienynas.js"), code);
 Safari.open("scriptable:///run/Dienynas");
 ```
 
-**Update:** run the installer again. Sign-in, settings and chat history are kept. (The same installer with friendlier messages is in [`install.js`](install.js).)
+**Update:** the app offers new versions itself ([details](#updates-and-whats-new)). You can also run the installer again any time; sign-in, settings and chat history are kept. (The same installer with friendlier messages is in [`install.js`](install.js).)
 
 **Optional extras**
 
@@ -163,6 +163,21 @@ Opening the app normally also pops up anything new that arrived since the last r
 You can also start a check from a link or another app: `scriptable:///run/Dienynas?check=1`.
 
 Checks cover the child currently selected in the app. Network hiccups in the background are kept quiet; you'll only get a notification about a failure when TAMO rejects the sign-in.
+
+## Updates and what's new
+
+From version 1.4.0, Dienynas+ updates itself. When you open it and a newer version is on GitHub, a sheet slides up with the new version's three best features:
+
+<img src="screenshots/update.png" width="240" align="right" alt="Update sheet showing a new version and its three highlights">
+
+- **Update now** downloads the new version; close and reopen the app to start using it. Sign-in, settings and chat history are kept.
+- **Later**, or tapping outside the sheet, hides the offer for two days.
+
+The current version is shown at the bottom of every screen. Every release is listed in [`CHANGELOG.md`](CHANGELOG.md); how to publish one is in [`docs/RELEASING.md`](docs/RELEASING.md).
+
+If you installed before 1.4.0, run the installer once more to get the updater; after that, updates come to you.
+
+<br clear="right">
 
 ## How it works
 
