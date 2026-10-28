@@ -2,6 +2,22 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.5.0 (2026-10-28): Ask with Claude or OpenAI
+
+- 🤖 **Claude or OpenAI**: ✨ Ask answers now work with either provider. Switch any time in AI settings.
+- 🧠 **Pick any model**: Load the models your own key can use, choose one and test the connection.
+- 📊 **See your token usage**: Tokens per day, feature and model, so you always know what AI costs you.
+
+**Changes**
+
+- New AI settings sheet (••• › AI settings): Claude and OpenAI keys, model picker loaded from your key, connection test, token usage per day, feature and model
+- Keys are entered in a native secure prompt and stored in the iOS Keychain; the page only ever sees them masked
+- ✨ Ask goes through one shared AI call, following the app-blueprints AI configuration, and keeps the whole conversation with either provider
+- The ✨ Ask tab stays hidden until a key is saved
+- Every Ask answer is labelled with the provider that wrote it
+- Your existing OpenAI key moves over automatically
+- The thinking-effort setting is gone: choose a model instead
+
 ## 1.4.0 (2026-10-27): Never miss an update
 
 - 🔔 **Update reminders**: The app tells you when a new version is out, and waits two days if you tap Later.
