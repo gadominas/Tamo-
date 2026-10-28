@@ -37,7 +37,7 @@ Safari.open("scriptable:///run/Dienynas");
 | | How |
 | --- | --- |
 | Home-screen widget | Add a **Scriptable** widget, edit it, choose **Dienynas**. |
-| ✨ Ask | Paste an [OpenAI API key](https://platform.openai.com/api-keys) the first time you ask. |
+| ✨ Ask | A [Claude](https://console.anthropic.com/settings/keys) or [OpenAI](https://platform.openai.com/api-keys) API key, added in **••• › AI settings**. Without one the Ask tab stays hidden. |
 | 🔔 New-items alerts | Shortcuts automation running **Dienynas** with parameter `check`. [Setup](#-scheduled-checks-get-told-about-anything-new) |
 | 1–7 grading | Grades tab → **Scale 1–10** → pick 1–7. |
 
@@ -122,7 +122,7 @@ The data is refreshed automatically when it's more than a few hours old or from 
 
 The assistant is told to answer only from that data, never to invent dates, grades or tasks, and to say so when something isn't there. It judges grades on the child's own scale (1–10, 1–7, …). Lithuanian school text is quoted as written, with a short translation when you ask in English.
 
-It uses the OpenAI Responses API (`gpt-5.4-mini`, low reasoning effort), the same setup as [Strava Daily Digest](https://github.com/gadominas/StravaFeed). You need your own OpenAI API key: the first time you ask, paste it once and it's saved in the iOS Keychain. You can also add or remove it from the ••• menu. API usage is billed separately from a ChatGPT subscription. Because every question carries the school data and the whole conversation, a question costs roughly a cent or two; OpenAI caches the unchanged part, which keeps follow-ups cheaper.
+It works with Claude or OpenAI, set up the same way as in the other apps (see [app-blueprints](https://github.com/gadominas/app-blueprints)). Open **••• › AI settings** to add your own key, pick any model your key can use, test the connection and see how many tokens Ask has used per day and model. Keys are typed into a native iOS prompt and saved in the iOS Keychain. API usage is billed separately from a chat subscription. Because every question carries the school data and the whole conversation, a question costs roughly a cent or two.
 
 ### Also
 
@@ -173,7 +173,7 @@ From version 1.4.0, Dienynas+ updates itself. When you open it and a newer versi
 - **Update now** downloads the new version; close and reopen the app to start using it. Sign-in, settings and chat history are kept.
 - **Later**, or tapping outside the sheet, hides the offer for two days.
 
-The current version is shown at the bottom of every screen. Every release is listed in [`CHANGELOG.md`](CHANGELOG.md); how to publish one is in [`docs/RELEASING.md`](docs/RELEASING.md).
+The current version is shown at the bottom of every screen. Every release is listed in [`CHANGELOG.md`](CHANGELOG.md); how to publish one is in [`docs/RELEASING.md`](docs/RELEASING.md). This app follows the shared [app blueprints](https://github.com/gadominas/app-blueprints) (see [docs/BLUEPRINTS.md](docs/BLUEPRINTS.md)).
 
 If you installed before 1.4.0, run the installer once more to get the updater; after that, updates come to you.
 
@@ -193,18 +193,18 @@ Dienynas+ talks directly to the same API the official **TAMO IŠMANIEMS** mobile
 | Holidays and school events | `core/app/calendar/events/allDay` |
 | Messages | `messaging/messages/received` and `messaging/messages/group/received` |
 | Attachments | `files/filedownloadurl` / `GetFileUrl` |
-| ✨ Ask | OpenAI `v1/responses`, sent only when you ask a question |
+| ✨ Ask | Claude `v1/messages` or OpenAI `v1/chat/completions` (the provider marked “In use”), sent only when you ask a question |
 
 Everything is in one file. The data layer runs in Scriptable; the interface is an HTML page shown in Scriptable's WebView, and the two communicate through `tamo://` links intercepted by the script.
 
 ## Privacy and security
 
 - Your username and password are stored only in the **iOS Keychain** on your phone. They are never written into the script.
-- The script talks only to TAMO's own servers, plus OpenAI when you use ✨ Ask. There is no analytics or tracking.
-- **✨ Ask sends the school data to OpenAI** with each question: lessons, homework, classwork, grades, attendance, notices, the calendar, message headers and the text of already-read messages, plus the conversation so far. The child's name isn't sent. Requests are made with `store: false`, so OpenAI doesn't keep them for later retrieval. If you don't add an OpenAI key, nothing is ever sent to OpenAI.
-- Your OpenAI key is stored only in the iOS Keychain and sent only to OpenAI.
+- The script talks only to TAMO's own servers, plus Claude or OpenAI when you use ✨ Ask. There is no analytics or tracking.
+- **✨ Ask sends the school data to the AI provider in use** with each question: lessons, homework, classwork, grades, attendance, notices, the calendar, message headers and the text of already-read messages, plus the conversation so far. The child's name isn't sent. OpenAI chat requests aren't stored for later retrieval by default; Anthropic doesn't train on API data by default. If you don't add a key, nothing is ever sent to an AI provider.
+- Your Claude and OpenAI keys are stored only in the iOS Keychain and each is sent only to its own provider. The app's page only ever sees them masked.
 - The Ask conversation and the data gathered for it are saved in Scriptable's local documents folder, one file per child. **Clear memory** deletes that child's file.
-- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the OpenAI key, the session, the cache, all saved conversations and the record of what's already been shown.
+- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the AI keys, the session, the cache, all saved conversations and the record of what's already been shown.
 - Dienynas+ is **read-only** with one exception, the same as the official app: **opening a message marks it as read** in TAMO.
 
 ## Limitations

@@ -28,7 +28,7 @@ const CONFIG = {
 };
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -41,7 +41,6 @@ const K = {
   role: "dienynasplus.role",
   lang: "dienynasplus.lang",
   session: "dienynasplus.session",
-  aiKey: "dienynasplus.openai-key",
   scale: "dienynasplus.grade-scale",
 };
 
@@ -647,15 +646,11 @@ const NATIVE_TEXT = {
     badLogin: "TAMO didn't accept the sign-in details. Enter them again?",
     tryAgain: "Try again",
     save: "Save",
-    aiKeyAdd: "Add OpenAI key for Ask",
-    aiKeyRemove: "Remove OpenAI key",
-    aiKeyTitle: "OpenAI API key",
-    aiKeyMsg: "Used by Ask. It stays in this phone's Keychain and is only sent to OpenAI, together with the school data needed to answer.",
-    aiKeyBad: "That doesn't look like an OpenAI key (it starts with sk-).",
+    aiSettings: "AI settings",
     aiNoData: "School data hasn't loaded yet. Refresh and try again.",
-    aiQuota: "OpenAI rate limit or quota reached. Try again in a minute, or check billing on platform.openai.com.",
-    aiOffline: "Could not reach OpenAI. Check the internet connection.",
-    aiEmpty: "OpenAI returned an empty answer. Try asking again.",
+    aiQuota: "The AI provider's rate limit or quota was reached. Try again in a minute, or check billing with your provider.",
+    aiOffline: "Could not reach the AI provider. Check the internet connection.",
+    aiEmpty: "The AI returned an empty answer. Try asking again.",
     aiTooLong: "This conversation has grown too long for the AI. Tap Clear memory to start over.",
     scaleTitle: "Grade scale",
     scaleNow: "Now:",
@@ -681,15 +676,11 @@ const NATIVE_TEXT = {
     badLogin: "TAMO nepriėmė prisijungimo duomenų. Įvesti iš naujo?",
     tryAgain: "Bandyti dar kartą",
     save: "Išsaugoti",
-    aiKeyAdd: "Pridėti OpenAI raktą klausimams",
-    aiKeyRemove: "Pašalinti OpenAI raktą",
-    aiKeyTitle: "OpenAI API raktas",
-    aiKeyMsg: "Naudojamas skiltyje „Klausk“. Saugomas šio telefono Keychain ir siunčiamas tik į OpenAI kartu su atsakymui reikalingais mokyklos duomenimis.",
-    aiKeyBad: "Tai nepanašu į OpenAI raktą (jis prasideda sk-).",
+    aiSettings: "AI nustatymai",
     aiNoData: "Mokyklos duomenys dar neįkelti. Atnaujinkite ir bandykite dar kartą.",
-    aiQuota: "Pasiektas OpenAI užklausų ar apmokėjimo limitas. Bandykite po minutės arba patikrinkite platform.openai.com.",
-    aiOffline: "Nepavyko susisiekti su OpenAI. Patikrinkite interneto ryšį.",
-    aiEmpty: "OpenAI grąžino tuščią atsakymą. Paklauskite dar kartą.",
+    aiQuota: "Pasiektas DI tiekėjo užklausų ar apmokėjimo limitas. Bandykite po minutės arba patikrinkite apmokėjimą pas tiekėją.",
+    aiOffline: "Nepavyko susisiekti su DI tiekėju. Patikrinkite interneto ryšį.",
+    aiEmpty: "DI grąžino tuščią atsakymą. Paklauskite dar kartą.",
     aiTooLong: "Pokalbis tapo per ilgas DI. Paspauskite „Išvalyti atmintį“ ir pradėkite iš naujo.",
     scaleTitle: "Vertinimo skalė",
     scaleNow: "Dabar:",
@@ -729,6 +720,53 @@ const safeJSON = (v) => JSON.stringify(v).replace(/</g, "\\u003c").replace(/\u20
 const NO_ZOOM = '<script>(function(){var p=function(e){e.preventDefault()};["gesturestart","gesturechange","gestureend"].forEach(function(t){document.addEventListener(t,p,{passive:false})});document.addEventListener("touchmove",function(e){if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});var last=0;document.addEventListener("touchend",function(e){var n=Date.now();if(n-last<300&&!e.target.closest("button,a,[data-toggle],textarea,input"))e.preventDefault();last=n},{passive:false});})();</script>';
 
 const CSS = `
+#aisheet{--ai-paper:var(--paper);--ai-sheet:var(--card);--ai-rule:var(--line);--ai-ink:var(--ink);--ai-muted:var(--muted);--ai-signal:var(--blue);--ai-wash:color-mix(in srgb,var(--ai-signal) 14%,transparent);--ai-danger:var(--red);
+  position:fixed;inset:0;z-index:60;background:var(--ai-paper);color:var(--ai-ink);transform:translateY(102%);visibility:hidden;transition:transform .28s ease,visibility 0s linear .28s;overflow-y:auto;-webkit-overflow-scrolling:touch;font:15px/1.4 -apple-system,system-ui,sans-serif;text-align:left}
+#aisheet.open{transform:none;visibility:visible;transition:transform .28s ease}
+#aisheet *{box-sizing:border-box}
+#aisheet button{font:inherit;color:inherit;background:none;border:0;margin:0;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none;touch-action:manipulation}
+#aisheet .sh-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;background:var(--ai-paper);border-bottom:1px solid var(--ai-rule)}
+#aisheet .sh-head h2{margin:0;font-size:22px;font-weight:700}
+#aisheet .sh-body{padding:4px 16px calc(28px + env(safe-area-inset-bottom,0px));max-width:680px;margin:0 auto}
+#aisheet .link{color:var(--ai-signal);font-weight:600;font-size:17px;padding:8px 0 8px 12px}
+#aisheet .hint{font-size:14px;color:var(--ai-muted);margin:12px 0 0}
+#aisheet .muted{color:var(--ai-muted)} #aisheet .small{font-size:13px} #aisheet .pad{padding:4px 0 8px;margin:0}
+#aisheet .note{font-size:12.5px;color:var(--ai-muted);margin:6px 0 0}
+#aisheet .sec{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ai-muted);margin:24px 0 8px}
+#aisheet .sm{font-size:14px;font-weight:600;padding:8px 12px;border-radius:9px;border:1px solid var(--ai-rule);background:var(--ai-sheet);color:var(--ai-ink)}
+#aisheet .sm.primary{background:var(--ai-signal);border-color:var(--ai-signal);color:#fff}
+#aisheet .srow{display:flex;align-items:center;gap:12px;background:var(--ai-sheet);border:1px solid var(--ai-rule);border-radius:14px;padding:12px 14px;margin:8px 0}
+#aisheet .grow{flex:1;min-width:0} #aisheet .grow b{display:block;font-weight:600} #aisheet .grow small{display:block;font-size:13px;margin-top:2px}
+#aisheet .switch{flex:none;width:51px;height:31px;border-radius:16px;background:var(--ai-rule);position:relative;transition:background .2s}
+#aisheet .switch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+#aisheet .switch.on{background:var(--ai-signal)} #aisheet .switch.on::after{transform:translateX(20px)}
+#aisheet .aicard,#aisheet .ucard{background:var(--ai-sheet);border:1px solid var(--ai-rule);border-radius:14px;padding:14px;margin:14px 0}
+#aisheet .aicard.active{border-color:var(--ai-signal);box-shadow:0 0 0 1px var(--ai-signal)}
+#aisheet .aic-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:17px}
+#aisheet .aic-row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:14px}
+#aisheet .aic-row.lbl,#aisheet .aic-row .lbl{font-weight:600}
+#aisheet code{font:13px ui-monospace,Menlo,monospace;background:var(--ai-paper);border:1px solid var(--ai-rule);border-radius:6px;padding:2px 6px}
+#aisheet .aic-btns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+#aisheet .sm[disabled]{opacity:.5}
+#aisheet .modelsel{display:block;width:100%;margin-top:6px;font:16px -apple-system,system-ui,sans-serif;color:var(--ai-ink);background:var(--ai-paper);border:1px solid var(--ai-rule);border-radius:9px;padding:9px 10px}
+#aisheet .danger{color:var(--ai-danger)} #aisheet .danger.armed{background:var(--ai-danger);color:#fff;border-color:var(--ai-danger)}
+#aisheet .ustat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 4px}
+#aisheet .ustat div{background:var(--ai-paper);border-radius:10px;padding:8px 10px}
+#aisheet .ustat b{display:block;font-size:20px;font-weight:700}
+#aisheet .ustat small{color:var(--ai-muted);font-size:12px}
+#aisheet .ubars{display:flex;align-items:flex-end;gap:3px;height:56px;margin-top:10px}
+#aisheet .ubars span{flex:1;background:var(--ai-signal);border-radius:3px 3px 0 0;min-height:2px}
+#aisheet .ubars span.zero{background:var(--ai-rule)}
+#aisheet .ubars-l{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ai-muted);margin-top:4px}
+#aisheet .utab{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+#aisheet .utab th{text-align:left;font-weight:600;color:var(--ai-muted);padding:4px 4px 4px 0;border-bottom:1px solid var(--ai-rule)}
+#aisheet .utab td{padding:6px 4px 6px 0;border-bottom:1px solid var(--ai-rule);word-break:break-word}
+#aisheet .utab th:not(:first-child),#aisheet .utab td:not(:first-child){text-align:right;white-space:nowrap}
+#aitoast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:61;transform:translate(-50%,20px);opacity:0;visibility:hidden;max-width:90vw;padding:10px 16px;border-radius:18px;background:var(--ink);color:var(--paper);font:14px/1.35 -apple-system,system-ui,sans-serif;text-align:center;pointer-events:none;transition:transform .25s,opacity .25s,visibility 0s linear .25s}
+#aitoast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .25s,opacity .25s}
+.badge-ai{display:inline-block;font-size:12px;font-weight:700;color:var(--blue);background:color-mix(in srgb,var(--blue) 14%,transparent);border-radius:6px;padding:2px 8px}
+.badge-ex{display:inline-block;font-size:12px;font-weight:600;color:var(--muted);border:1px dashed var(--muted);border-radius:6px;padding:1px 8px}
+.bubble.assistant .badge-ai{margin-bottom:6px}
 :root{
   --paper:#EEF1F6; --card:#FFFFFF; --ink:#15203A; --muted:#5F6A84; --faint:#8D96AB; --line:#DCE1EA;
   --mark:#FFD84D; --markInk:#3B2F00; --red:#C8243A; --green:#14866A; --blue:#2450B8; --chip:#E4E9F2;
@@ -938,8 +976,8 @@ function pageMain() {
       askTitle: "Ask", askIntro: "Ask anything about the school week. Answers use only what's loaded from TAMO: schedule, homework, grades, attendance, notices and messages.",
       askSugg: ["What's due tomorrow?", "Any tests in the next two weeks?", "Summarise today's messages", "How are the maths grades going?", "What should go in the school bag tomorrow?"],
       askPlaceholder: "Ask about school…", newChat: "New chat",
-      keyHelp: "Paste your OpenAI API key once. It stays in this phone's Keychain and is only sent to OpenAI, together with the school data needed to answer.",
-      keySave: "Save", keyBad: "That doesn't look like an OpenAI key (it starts with sk-).", askFailed: (e) => `Couldn't answer: ${e}`,
+      keyHelp: "Ask needs a Claude or OpenAI key. Add one in Settings › AI settings.", keyOpen: "AI settings",
+      aiBy: (p) => `✦ AI answer by ${p}`, askFailed: (e) => `Couldn't answer: ${e}`,
       askHint: "AI answers can be wrong. Check important dates in TAMO.",
       memTitle: "In this chat",
       memLine: (i, range, from) => `Lessons: ${i.lessons} (${range}). Homework: ${i.homework}. Grades and assessments: ${i.grades}. Attendance marks: ${i.absences}. Messages: ${i.messages} (${i.bodies} with text). Calendar dates: ${i.events}. Since ${from}.`,
@@ -983,8 +1021,8 @@ function pageMain() {
       askTitle: "Klausk", askIntro: "Klauskite apie mokyklos savaitę. Atsakymai remiasi tik iš TAMO įkeltais duomenimis: tvarkaraščiu, namų darbais, pažymiais, lankomumu, pranešimais ir žinutėmis.",
       askSugg: ["Ką reikia atlikti rytojui?", "Ar per dvi savaites bus kontrolinių?", "Apibendrink šiandienos žinutes", "Kaip sekasi matematika?", "Ką įsidėti į kuprinę rytojui?"],
       askPlaceholder: "Klauskite apie mokyklą…", newChat: "Naujas pokalbis",
-      keyHelp: "Vieną kartą įklijuokite OpenAI API raktą. Jis saugomas šio telefono Keychain ir siunčiamas tik į OpenAI kartu su atsakymui reikalingais mokyklos duomenimis.",
-      keySave: "Išsaugoti", keyBad: "Tai nepanašu į OpenAI raktą (jis prasideda sk-).", askFailed: (e) => `Nepavyko atsakyti: ${e}`,
+      keyHelp: "Klausimams reikia Claude arba OpenAI rakto. Pridėkite jį: Nustatymai › AI nustatymai.", keyOpen: "AI nustatymai",
+      aiBy: (p) => `✦ DI atsakymas: ${p}`, askFailed: (e) => `Nepavyko atsakyti: ${e}`,
       askHint: "DI atsakymai gali klysti. Svarbias datas pasitikrinkite TAMO.",
       memTitle: "Šiame pokalbyje",
       memLine: (i, range, from) => `Pamokos: ${i.lessons} (${range}). Namų darbai: ${i.homework}. Pažymiai ir vertinimai: ${i.grades}. Lankomumo žymos: ${i.absences}. Žinutės: ${i.messages} (su tekstu: ${i.bodies}). Kalendoriaus datos: ${i.events}. Nuo ${from}.`,
@@ -1052,6 +1090,7 @@ function pageMain() {
   // ── state ──
   const S = { tab: 0, weekOffset: 0, weeks: { ...D.weeks }, day: null, hwFilter: "todo", msgDay: null, chat: (D.chat || []).slice(), thinking: false, needKey: false, pendingQ: "", info: D.chatInfo || null, preparing: false, stage: "", prepError: "", clearArmed: false };
   if (typeof D.startTab === "number") S.tab = D.startTab;
+  if (S.tab === 5 && !D.hasAiKey) S.tab = 0;   // Ask is hidden without an AI key
   const GMAX = Number(D.gradeMax) || 10;
   const allDays = () => [...(S.weeks["0"] || []), ...(S.weeks["1"] || [])];
   const dayOf = (date) => allDays().find((d) => d.date === date) || (Object.values(S.weeks).flat().find((d) => d && d.date === date));
@@ -1344,6 +1383,112 @@ function pageMain() {
     ].join("");
   }
 
+// ── AI settings sheet (app-blueprints · ai-configuration) ──
+  // Opened with window.__aiOpen(); the Scriptable side pushes state with window.__aiState(state).
+  var AIS=null, aiIsOpen=false, aiArmed=null, aiLoading={};
+  var AI_PN={ anthropic:'Claude', openai:'OpenAI' };
+  var AI_FEAT={"ask": "Ask", "test": "Connection tests", "other": "Other"};
+  var AI_JOBS=[];
+  function aiSend(act,data){ call(act,data,120000).catch(function(){}); }
+  function aiEsc(t){ var d=document.createElement('div'); d.textContent=String(t==null?'':t); return d.innerHTML; }
+  function aiFmtN(n){ return n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?Math.round(n/1e3)+'k':n>=1e3?(n/1e3).toFixed(1)+'k':String(n); }
+  function aiRel(t){ var s=Math.max(0,Math.round((Date.now()-t)/1000)); if(s<60) return 'just now'; if(s<3600) return Math.round(s/60)+' min ago'; if(s<86400) return Math.round(s/3600)+' h ago'; return Math.round(s/86400)+' d ago'; }
+  function aiDayStr(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+  function aiArm(k){ aiArmed=k; renderAI(); setTimeout(function(){ if(aiArmed===k){ aiArmed=null; renderAI(); } },3500); }
+  function aiSheet(){
+    var el=document.getElementById('aisheet');
+    if(!el){
+      el=document.createElement('div'); el.id='aisheet'; el.setAttribute('role','dialog'); el.setAttribute('aria-label','AI settings');
+      document.body.appendChild(el);
+      el.addEventListener('click',aiClick);
+      el.addEventListener('change',function(e){ e.stopPropagation(); if(e.target.classList.contains('modelsel')) aiSend('aimodel',{p:e.target.getAttribute('data-p'),v:e.target.value}); });
+    }
+    return el;
+  }
+  window.__aiOpen=function(){ aiIsOpen=true; renderAI(); aiSend('aistate',{}); };
+  window.__aiState=function(s){ AIS=s; aiLoading={}; renderAI(); if(typeof window.__aiChanged==='function') window.__aiChanged(s); };
+  window.__aiToast=function(t){
+    if(!t) return; if(typeof toast==='function') return toast(t);
+    var el=document.getElementById('aitoast'); if(!el){ el=document.createElement('div'); el.id='aitoast'; el.setAttribute('aria-live','polite'); document.body.appendChild(el); }
+    el.textContent=t; el.classList.add('on'); clearTimeout(el.tm); el.tm=setTimeout(function(){ el.classList.remove('on'); },2600);
+  };
+  function aiUsageBlock(p,P){
+    var days=[], now=new Date(), i;
+    for(i=13;i>=0;i--){ var d=new Date(now); d.setDate(d.getDate()-i); days.push(aiDayStr(d)); }
+    var tot=function(k){ var x=P.days[k]; return x?x.in+x.out:0; };
+    var max=Math.max.apply(null,[1].concat(days.map(tot))), month=AIS.today.slice(0,7);
+    var monthTot=Object.keys(P.days).filter(function(k){ return k.indexOf(month)===0; }).reduce(function(n,k){ return n+P.days[k].in+P.days[k].out; },0);
+    var rows=function(obj,label){ return Object.keys(obj).sort(function(a,b){ return (obj[b].in+obj[b].out)-(obj[a].in+obj[a].out); }).map(function(k){ var x=obj[k];
+      return '<tr><td>'+aiEsc(label(k))+'</td><td>'+x.calls+'</td><td>'+aiFmtN(x.in)+'</td><td>'+aiFmtN(x.out)+'</td></tr>'; }).join(''); };
+    return '<div class="ucard"><div class="aic-h"><b>'+AI_PN[p]+'</b><span class="muted small">'+P.calls+' request'+(P.calls===1?'':'s')+'</span></div>'+
+      '<div class="ustat"><div><b>'+aiFmtN(P.in+P.out)+'</b><small>total tokens</small></div><div><b>'+aiFmtN(P.in)+'</b><small>input</small></div><div><b>'+aiFmtN(P.out)+'</b><small>output</small></div></div>'+
+      '<p class="note">Today '+aiFmtN(tot(AIS.today))+' tokens — this month '+aiFmtN(monthTot)+' tokens</p>'+
+      '<div class="ubars" aria-label="Tokens per day, last 14 days">'+days.map(function(k){ var v=tot(k); return '<span style="height:'+Math.max(v?6:2,v/max*100)+'%" class="'+(v?'':'zero')+'" title="'+k+': '+v+' tokens"></span>'; }).join('')+'</div>'+
+      '<div class="ubars-l"><span>2 weeks ago</span><span>Today</span></div>'+
+      '<table class="utab"><tr><th>Feature</th><th>Requests</th><th>In</th><th>Out</th></tr>'+rows(P.features,function(k){ return AI_FEAT[k]||k; })+'</table>'+
+      '<table class="utab"><tr><th>Model</th><th>Requests</th><th>In</th><th>Out</th></tr>'+rows(P.models,function(k){ return k; })+'</table></div>';
+  }
+  function renderAI(){
+    var el=aiSheet(), keep=el.scrollTop;
+    el.classList.toggle('open',aiIsOpen);
+    if(!aiIsOpen) return;
+    if(!AIS){ el.innerHTML='<div class="sh-head"><h2>AI</h2><button class="link" data-aiact="aiclose">Done</button></div><div class="sh-body"><p class="muted pad">Loading…</p></div>'; return; }
+    var A=AIS;
+    var card=function(p){
+      var key=A.keys[p], ml=(A.models[p]||{}).list||[], cur=A.model[p];
+      var opts=ml.some(function(m){ return m.id===cur; })?ml:[{id:cur,name:cur}].concat(ml);   // keep the chosen model visible
+      return '<div class="aicard '+(A.provider===p?'active':'')+'">'+
+        '<div class="aic-h"><b>'+AI_PN[p]+'</b>'+(A.provider===p?'<span class="badge-ai">In use</span>':key?'<button class="sm" data-aiact="aiprov" data-v="'+p+'">Use '+AI_PN[p]+'</button>':'')+'</div>'+
+        '<div class="aic-row"><span class="lbl">API key</span>'+(key?'<code>'+aiEsc(key)+'</code>':'<span class="muted">Not set</span>')+'</div>'+
+        '<div class="aic-btns"><button class="sm '+(key?'':'primary')+'" data-aiact="aikey" data-v="'+p+'">'+(key?'Change key':'Add key')+'</button>'+
+          (key?'<button class="sm" data-aiact="aitest" data-v="'+p+'">Test connection</button><button class="sm danger '+(aiArmed==='rm'+p?'armed':'')+'" data-aiact="airm" data-v="'+p+'">'+(aiArmed==='rm'+p?'Confirm':'Remove')+'</button>':'')+'</div>'+
+        '<label class="aic-row lbl" for="ms-'+p+'">Model</label>'+
+        '<select id="ms-'+p+'" class="modelsel" data-p="'+p+'">'+opts.map(function(m){ return '<option value="'+aiEsc(m.id)+'" '+(m.id===cur?'selected':'')+'>'+aiEsc(m.name)+(m.name!==m.id?' — '+aiEsc(m.id):'')+'</option>'; }).join('')+'</select>'+
+        '<div class="aic-btns"><button class="sm" data-aiact="aimodels" data-v="'+p+'" '+(key&&!aiLoading[p]?'':'disabled')+'>'+(aiLoading[p]?'Loading…':ml.length?'Refresh model list':'Load my models')+'</button>'+
+          '<span class="note">'+(ml.length?ml.length+' models, updated '+aiRel(A.models[p].at):key?'Loads the models your key can use':'Add a key to load models')+'</span></div>'+
+      '</div>';
+    };
+    var order=A.provider==='openai'?['openai','anthropic']:['anthropic','openai'];
+    var used=Object.keys(A.usage.p).filter(function(p){ return A.usage.p[p].calls; });
+    var jobs=AI_JOBS.length?AI_JOBS.map(function(j){
+        return '<div class="srow"><div class="grow"><b>'+aiEsc(j.title)+'</b><small class="muted">'+aiEsc(j.text)+'</small></div>'+
+          '<button class="switch '+(A.ai?'on':'')+'" data-aiact="aitoggle" aria-label="'+aiEsc(j.title)+'"></button></div>'; }).join('')
+      :'<p class="muted pad">Nothing runs in the background: AI only answers when you ask in the ✨ Ask tab.</p>';
+    el.innerHTML='<div class="sh-head"><h2>AI</h2><button class="link" data-aiact="aiclose">Done</button></div><div class="sh-body">'+
+      '<p class="hint">Keys stay in this iPhone’s Keychain. Only the provider marked “In use” is called.</p>'+
+      order.map(card).join('')+
+      '<h3 class="sec">What AI does</h3>'+jobs+
+      '<h3 class="sec">Token usage</h3>'+
+      (used.length?used.map(function(p){ return aiUsageBlock(p,A.usage.p[p]); }).join(''):'<p class="muted pad">No AI requests yet.</p>')+
+      (used.length?'<div class="aic-btns"><span class="note">Counting since '+new Date(A.usage.since).toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'})+'</span>'+
+        '<button class="sm danger '+(aiArmed==='reset'?'armed':'')+'" data-aiact="usagereset">'+(aiArmed==='reset'?'Confirm reset':'Reset counters')+'</button></div>':'')+
+    '</div>';
+    el.scrollTop=keep;   // re-renders must not jump the user back to the top
+  }
+  function aiClick(e){
+    e.stopPropagation();   // the sheet's taps never reach the app's own click handler
+    if(e.target.closest('select, option, input, textarea')) return;
+    var t=e.target.closest('[data-aiact]'); if(!t||t.disabled) return;
+    var act=t.getAttribute('data-aiact'), v=t.getAttribute('data-v');
+    if(act==='aiclose'){ aiIsOpen=false; aiArmed=null; renderAI(); return; }
+    if(act==='aikey'||act==='aitest'||act==='aiprov'||act==='aitoggle'){ if(act==='aitest') window.__aiToast('Testing '+AI_PN[v]+'…'); aiSend(act,{v:v}); return; }
+    if(act==='aimodels'){ aiLoading[v]=1; renderAI(); aiSend('aimodels',{v:v}); return; }
+    if(act==='airm'){ if(aiArmed==='rm'+v){ aiArmed=null; aiSend('airm',{v:v}); } else aiArm('rm'+v); return; }
+    if(act==='usagereset'){ if(aiArmed==='reset'){ aiArmed=null; aiSend('usagereset',{}); } else aiArm('reset'); return; }
+  }
+  // A key added or removed in AI settings shows or hides the Ask tab straight away; a waiting question is asked.
+  window.__aiChanged = (s) => {
+    const had = D.hasAiKey;
+    D.hasAiKey = s.hasKey;
+    if (!s.hasKey && S.tab === 5) S.tab = 0;
+    if (had !== s.hasKey || S.needKey) {
+      const q = s.hasKey && S.needKey ? S.pendingQ : "";
+      if (s.hasKey) { S.needKey = false; S.pendingQ = ""; }
+      render();
+      if (q) ask(q);
+    }
+  };
+
   // ── ask (chat) ──
   function md(text) {
     const inline = (s) => h(s).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\*([^*\s][^*]*)\*/g, "<i>$1</i>").replace(/https?:\/\/[^\s<)]+/g, (u) => `<a href="${u}" style="color:var(--blue)">${u}</a>`);
@@ -1380,13 +1525,13 @@ function pageMain() {
     </div>`;
   }
   function screenAsk() {
-    const bubbles = S.chat.map((m) => `<div class="bubble ${m.role}">${m.role === "assistant" ? md(m.text) : h(m.text)}</div>`);
+    const bubbles = S.chat.map((m) => `<div class="bubble ${m.role}">${m.role === "assistant" ? `<span class="badge-ai">${h(m.by ? T.aiBy(m.by) : "✦ AI")}</span>${md(m.text)}` : h(m.text)}</div>`);
     if (S.thinking) bubbles.push(`<div class="bubble assistant"><span class="typing"><i></i><i></i><i></i></span>${S.stage ? ` <span style="color:var(--muted);font-size:14px">${h(T.stages[S.stage] || "")}</span>` : ""}</div>`);
     const intro = `${memCard()}${!S.chat.length && !S.thinking
       ? `<p class="intro">${h(T.askIntro)}</p><div class="sugg">${T.askSugg.map((q) => `<button data-ask="${h(q)}">${h(q)}</button>`).join("")}</div>`
       : ""}`;
     const key = S.needKey
-      ? `<div class="keycard"><p>${h(T.keyHelp)}</p><div class="keyrow"><input id="aikey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-..."><button id="savekey">${h(T.keySave)}</button></div></div>`
+      ? `<div class="keycard"><p>${h(T.keyHelp)}</p><div class="keyrow"><button id="aiopen">${h(T.keyOpen)}</button></div></div>`
       : "";
     return `<div class="askwrap">${intro}<div class="chat">${bubbles.join("")}${key}</div>
       <div class="composer"><textarea id="q" rows="1" enterkeyhint="send" placeholder="${h(T.askPlaceholder)}"></textarea>
@@ -1425,7 +1570,7 @@ function pageMain() {
     scrollEnd();
     try {
       const r = await call("ask", { q }, 300000);
-      S.chat.push({ role: "assistant", text: r.answer });
+      S.chat.push({ role: "assistant", text: r.answer, by: r.by });
       if (r.info) S.info = r.info;
     } catch (e) {
       if (e.message === "NEED_KEY") {
@@ -1523,7 +1668,7 @@ function pageMain() {
     const head = `<header class="top">
       <div class="who"><b>${h(D.child.title)}</b>${h(D.child.subtitle || "")}</div>
       <div class="tools">
-        <button class="icon-btn ${S.tab === 5 ? "on" : ""}" data-tab="5" aria-label="ask"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
+        ${D.hasAiKey ? `<button class="icon-btn ${S.tab === 5 ? "on" : ""}" data-tab="5" aria-label="ask"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>` : ""}
         <button class="icon-btn" id="refresh" aria-label="refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></button>
         <button class="icon-btn" id="settings" aria-label="settings"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
       </div></header>
@@ -1616,19 +1761,7 @@ function pageMain() {
     }
     if (el.dataset.ask) return ask(el.dataset.ask);
     if (el.id === "send") return ask($("#q").value);
-    if (el.id === "savekey") {
-      const key = ($("#aikey").value || "").trim();
-      if (!/^sk-/.test(key)) return alert(T.keyBad);
-      try {
-        await call("setkey", { key });
-      } catch (err) {
-        return alert(err.message);
-      }
-      S.needKey = false;
-      const q = S.pendingQ;
-      S.pendingQ = "";
-      return q ? ask(q) : render();
-    }
+    if (el.id === "aiopen") return window.__aiOpen();
     if (el.hasAttribute("data-toggle")) return el.classList.toggle("open");
     if (el.dataset.week) {
       S.weekOffset += Number(el.dataset.week);
@@ -1696,11 +1829,214 @@ function messageHTML(title, message, buttons = []) {
   ${buttons.map((b, i) => `<button class="btn ${i ? "alt" : ""}" onclick="location.href='tamo://${b.action}?id=0&p=%7B%7D'">${esc(b.label)}</button>`).join("")}</div></body></html>`;
 }
 
-// ───────────────────────────── ✨ Ask: chat over everything TAMO has (OpenAI Responses API) ─────────────────────────────
+// ─────────────── AI configuration ───────────────
+// Follows github.com/gadominas/app-blueprints · blueprints/ai-configuration.md (reference: BlogPulse.js).
+// Every AI request goes through aiCall. Keys live in the iOS Keychain only; the page sees them masked.
 
+// AI providers. Keychain names are unique per app; models are defaults until the user picks one.
 const AI = {
-  MODEL: "gpt-5.4-mini",
-  REASONING: "low", // 'low' keeps answers quick; raise for harder questions
+  anthropic: { key: "DIENYNASPLUS_ANTHROPIC_KEY", model: "claude-haiku-5-5" },
+  openai:    { key: "DIENYNASPLUS_OPENAI_KEY",    model: "gpt-5.4-mini" },
+};
+const PROVIDERS = { anthropic: "Claude", openai: "OpenAI" };
+
+// AI settings and token usage live in their own small JSON files on this iPhone (never the keys).
+const aiFm = FileManager.local();
+const aiPath = name => aiFm.joinPath(aiFm.documentsDirectory(), "dienynas-plus-" + name + ".json");
+function aiLoad(name, fallback) {
+  try { const p = aiPath(name); if (aiFm.fileExists(p)) return JSON.parse(aiFm.readString(p)); }
+  catch (e) { console.log("AI: couldn't read " + name + ": " + e); }
+  return fallback;
+}
+function aiWrite(name, data) {
+  try { aiFm.writeString(aiPath(name), JSON.stringify(data)); } catch (e) { console.log("AI: couldn't save " + name + ": " + e); }
+}
+const aiSettings = Object.assign({
+  aiProvider: "anthropic",   // the provider marked "In use"
+  ai: true,                  // background AI jobs on/off ("What AI does")
+  // model:  { anthropic: "…", openai: "…" }   set when the user picks a model
+  // models: { anthropic: { at, list: [{ id, name }] }, openai: … }   cached model lists
+}, aiLoad("ai-settings", {}));
+const saveAiSettings = () => aiWrite("ai-settings", aiSettings);
+
+const keyFor   = p => Keychain.contains(AI[p].key) ? Keychain.get(AI[p].key) : null;
+const aiKey    = () => keyFor(aiSettings.aiProvider);   // the key of the provider in use
+const modelFor = p => (aiSettings.model && aiSettings.model[p]) || AI[p].model;
+const maskKey  = k => k ? (k.length > 14 ? k.slice(0, 7) + "…" + k.slice(-4) : "…" + k.slice(-4)) : null;
+
+// Run once at start: move a key an earlier version stored elsewhere, then use whichever provider has a key.
+function aiMigrate(oldKeyNames, oldModel) {
+  for (const old of oldKeyNames || []) {
+    if (!Keychain.contains(old)) continue;
+    if (!Keychain.contains(AI.openai.key)) Keychain.set(AI.openai.key, Keychain.get(old));
+    Keychain.remove(old);
+    if (!keyFor("anthropic")) aiSettings.aiProvider = "openai";   // use the key that now exists
+  }
+  if (oldModel && !(aiSettings.model && aiSettings.model.openai)) aiSettings.model = Object.assign({}, aiSettings.model, { openai: oldModel });
+  if (!PROVIDERS[aiSettings.aiProvider]) aiSettings.aiProvider = "anthropic";
+  if (!aiKey()) { const other = Object.keys(PROVIDERS).find(p => keyFor(p)); if (other) aiSettings.aiProvider = other; }
+  saveAiSettings();
+}
+
+async function askKey(p) {
+  const cur = keyFor(p);
+  const al = new Alert();
+  al.title = `${PROVIDERS[p]} API key`;
+  al.message = cur ? `The saved key ends in …${cur.slice(-4)}. Paste a new key to replace it.`
+                   : "Paste your API key. It's stored in the iOS Keychain on this device only.";
+  al.addSecureTextField(p === "openai" ? "sk-…" : "sk-ant-…", "");
+  al.addAction("Save key");
+  al.addCancelAction("Cancel");
+  if (await al.present() !== 0) return false;
+  const v = al.textFieldValue(0).trim();
+  if (!v) return false;
+  Keychain.set(AI[p].key, v);
+  if (!aiKey()) aiSettings.aiProvider = p;   // first key saved: use that provider
+  return true;
+}
+
+function removeKey(p) {
+  if (Keychain.contains(AI[p].key)) Keychain.remove(AI[p].key);
+}
+
+// The only way the app calls AI. feature: a short tag for the usage table.
+// provider: defaults to the one in use; "Test connection" passes the card's provider.
+// user: one message, or a whole conversation as [{ role: "user" | "assistant", content }] (Tamo+ Ask keeps the chat).
+async function aiCall(system, user, maxTokens = 2500, feature = "other", provider = aiSettings.aiProvider) {
+  const key = keyFor(provider);
+  if (!key) throw new Error(`No ${PROVIDERS[provider]} key saved`);
+  const openai = provider === "openai", model = modelFor(provider);
+  const r = new Request(openai ? "https://api.openai.com/v1/chat/completions" : "https://api.anthropic.com/v1/messages");
+  r.method = "POST";
+  r.timeoutInterval = 90;
+  const convo = Array.isArray(user) ? user : [{ role: "user", content: user }];
+  if (openai) {
+    r.headers = { "Authorization": "Bearer " + key, "Content-Type": "application/json" };
+    r.body = JSON.stringify({ model, messages: [{ role: "system", content: system }].concat(convo) });
+  } else {
+    r.headers = { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+    r.body = JSON.stringify({ model, max_tokens: maxTokens, system, messages: convo });
+  }
+  const j = await r.loadJSON();
+  if (j.error) throw new Error(j.error.message || "AI request failed");
+  const u = j.usage || {};
+  recordUsage(provider, model, feature,
+    openai ? (u.prompt_tokens || 0) : (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0),
+    openai ? (u.completion_tokens || 0) : (u.output_tokens || 0));
+  return openai ? ((j.choices && j.choices[0] && j.choices[0].message.content) || "")
+                : (j.content || []).map(c => c.text || "").join("");
+}
+
+// For prompts that ask for JSON: tolerate code fences and stray text around it.
+function parseJSON(txt) {
+  const s = String(txt).replace(/```json|```/g, "").trim();
+  const a = s.search(/[\[{]/), b = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]"));
+  return JSON.parse(s.slice(a, b + 1));
+}
+
+// Token usage, counted from what the provider reports, per provider, model, feature and local day.
+let usage = aiLoad("usage", { since: Date.now(), p: {} });
+const aiDayKey = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function recordUsage(provider, model, feature, tin, tout) {
+  const P = usage.p[provider] = usage.p[provider] || { calls: 0, in: 0, out: 0, models: {}, features: {}, days: {} };
+  const b = (o, k) => o[k] = o[k] || { calls: 0, in: 0, out: 0 };
+  for (const x of [P, b(P.models, model), b(P.features, feature), b(P.days, aiDayKey())]) {
+    x.calls++; x.in += tin; x.out += tout;
+  }
+  const days = Object.keys(P.days).sort();
+  while (days.length > 400) delete P.days[days.shift()];   // keep about 13 months of days
+  aiWrite("usage", usage);   // save after every call: the app can be closed at any moment
+}
+
+function resetUsage() { usage = { since: Date.now(), p: {} }; aiWrite("usage", usage); }
+
+// The models the user's own key can call, newest first; cached so the menu works offline.
+async function fetchModels(p) {
+  const key = keyFor(p);
+  if (!key) throw new Error(`Add a ${PROVIDERS[p]} key first`);
+  const r = new Request(p === "openai" ? "https://api.openai.com/v1/models" : "https://api.anthropic.com/v1/models?limit=100");
+  r.headers = p === "openai" ? { "Authorization": "Bearer " + key } : { "x-api-key": key, "anthropic-version": "2023-06-01" };
+  r.timeoutInterval = 20;
+  const j = await r.loadJSON();
+  if (j.error) throw new Error(j.error.message || "Couldn't load models");
+  let list = (j.data || []).map(m => ({
+    id: m.id, name: m.display_name || m.id,
+    t: m.created_at ? Date.parse(m.created_at) : (m.created || 0) * 1000,
+  }));
+  // OpenAI lists every model the key can reach; keep only the ones that write text.
+  if (p === "openai") list = list.filter(m => /^(gpt-|o\d|chatgpt-)/.test(m.id)
+    && !/(audio|realtime|tts|transcribe|image|search|embedding|instruct|moderation)/.test(m.id));
+  list.sort((a, b) => b.t - a.t);
+  aiSettings.models = aiSettings.models || {};
+  aiSettings.models[p] = { at: Date.now(), list: list.map(m => ({ id: m.id, name: m.name })) };
+  saveAiSettings();
+  return list.length;
+}
+
+// Bridge actions from the AI settings sheet. Returns the toast to show ("" for none).
+const AI_ACTIONS = ["aistate", "aikey", "airm", "aiprov", "aimodels", "aimodel", "aitest", "usagereset", "aitoggle"];
+async function aiAction(head, m) {
+  const P = PROVIDERS[m.v] ? m.v : aiSettings.aiProvider;
+  let msg = "";
+  switch (head) {
+    case "aikey":
+      if (await askKey(P)) {
+        aiSettings.ai = true; saveAiSettings();
+        try { const n = await fetchModels(P); msg = `${PROVIDERS[P]} key saved — ${n} models available`; }
+        catch (e) { msg = `Key saved, but checking it failed: ${String(e.message || e).slice(0, 70)}`; }
+      }
+      break;
+    case "airm": removeKey(P); msg = `${PROVIDERS[P]} key removed`;
+      if (!aiKey()) { const other = Object.keys(PROVIDERS).find(p => keyFor(p)); if (other) aiSettings.aiProvider = other; }
+      break;
+    case "aiprov": if (PROVIDERS[m.v] && keyFor(m.v)) aiSettings.aiProvider = m.v; break;
+    case "aimodels":
+      try { const n = await fetchModels(P); msg = `${n} ${PROVIDERS[P]} models found`; }
+      catch (e) { msg = String(e.message || e).slice(0, 90); }
+      break;
+    case "aimodel":
+      if (PROVIDERS[m.p] && m.v) { aiSettings.model = aiSettings.model || {}; aiSettings.model[m.p] = m.v; msg = `${PROVIDERS[m.p]} now uses ${m.v}`; }
+      break;
+    case "aitest": {
+      const t0 = Date.now();
+      try {
+        await aiCall("Reply with the single word OK.", "Connection test.", 10, "test", P);
+        msg = `${PROVIDERS[P]} works — ${modelFor(P)} answered in ${((Date.now() - t0) / 1000).toFixed(1)} s`;
+      } catch (e) { msg = `${PROVIDERS[P]} test failed: ${String(e.message || e).slice(0, 80)}`; }
+      break;
+    }
+    case "usagereset": resetUsage(); msg = "Usage counters reset"; break;
+    case "aitoggle": aiSettings.ai = !aiSettings.ai; break;
+  }
+  saveAiSettings();
+  return msg;
+}
+
+// What the page gets. Keys appear only masked.
+function aiClientState() {
+  return {
+    provider: aiSettings.aiProvider,
+    keys:  Object.fromEntries(Object.keys(PROVIDERS).map(p => [p, maskKey(keyFor(p))])),
+    model: Object.fromEntries(Object.keys(PROVIDERS).map(p => [p, modelFor(p)])),
+    models: aiSettings.models || {}, usage, today: aiDayKey(),
+    ai: aiSettings.ai, hasKey: !!aiKey(),
+  };
+}
+// One-line status for the app's Settings row: "Claude — claude-haiku-5-5 — 12.4k tokens used".
+function aiStatusLine() {
+  if (!aiKey()) return "";
+  const P = usage.p[aiSettings.aiProvider];
+  return `${PROVIDERS[aiSettings.aiProvider]} — ${modelFor(aiSettings.aiProvider)}` +
+    (P && P.calls ? ` — ${aiFmtN(P.in + P.out)} tokens used` : "");
+}
+const aiFmtN = n => n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "k" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n);
+// ─────────────── end of AI configuration ───────────────
+
+// ───────────────────────────── ✨ Ask: chat over everything TAMO has (through aiCall) ─────────────────────────────
+
+const ASK = {
   CONTEXT_MAX_AGE_H: 4, // older school data is re-pulled before the next question; the conversation is kept
   WEEKS_BACK: 2, // lesson weeks pulled around this week
   WEEKS_AHEAD: 2,
@@ -1836,7 +2172,7 @@ async function gatherAll(api, base, progress = () => {}) {
 
   progress("schedule");
   const mondays = [];
-  for (let i = -AI.WEEKS_BACK; i <= AI.WEEKS_AHEAD; i++) mondays.push(addDays(monday, i * 7));
+  for (let i = -ASK.WEEKS_BACK; i <= ASK.WEEKS_AHEAD; i++) mondays.push(addDays(monday, i * 7));
   const weekList = await mapLimit(mondays, 3, (m) => safe(`schedule ${m}`, fetchWeek(api, m)));
   const weeks = Object.fromEntries(mondays.map((m, i) => [m, weekList[i]]).filter(([, d]) => d));
 
@@ -1866,8 +2202,8 @@ async function gatherAll(api, base, progress = () => {}) {
   const feed = (await safe("notifications", api.modern("core/app/feeds").then((r) => mapFeed(requiredList(r, "result"))))) || (base && base.feed) || [];
 
   progress("messages");
-  const messages = (await safe("messages", fetchMessages(api, addDays(today, -AI.MESSAGE_DAYS), 12))) || (base && base.messages) || [];
-  const readable = messages.filter((m) => !m.unread && m.date >= addDays(today, -AI.BODY_DAYS)).slice(0, AI.MAX_BODIES);
+  const messages = (await safe("messages", fetchMessages(api, addDays(today, -ASK.MESSAGE_DAYS), 12))) || (base && base.messages) || [];
+  const readable = messages.filter((m) => !m.unread && m.date >= addDays(today, -ASK.BODY_DAYS)).slice(0, ASK.MAX_BODIES);
   const bodies = {};
   await mapLimit(readable, 4, async (m) => {
     try {
@@ -1977,65 +2313,24 @@ function aiInstructions(ctx, gradeMax) {
 }
 
 async function aiAsk(pack, opened, history, question, gradeMax) {
-  if (!Keychain.contains(K.aiKey)) return { needKey: true };
-  const req = new Request("https://api.openai.com/v1/responses");
-  req.method = "POST";
-  req.timeoutInterval = 120;
-  req.headers = { Authorization: `Bearer ${Keychain.get(K.aiKey)}`, "Content-Type": "application/json" };
-  req.body = JSON.stringify({
-    model: AI.MODEL,
-    instructions: aiInstructions(aiContext(pack, opened, gradeMax), gradeMax),
-    // the whole conversation, every time, so nothing said earlier is forgotten
-    input: [...history.map((m) => ({ role: m.role, content: m.text })), { role: "user", content: question }],
-    reasoning: { effort: AI.REASONING },
-    store: false, // don't keep the child's school data on OpenAI's side
-  });
-  let res = null;
+  if (!aiKey()) return { needKey: true };
+  const provider = aiSettings.aiProvider;
+  // the whole conversation, every time, so nothing said earlier is forgotten
+  const convo = [...history.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({ role: m.role, content: m.text })), { role: "user", content: question }];
+  let text = "";
   try {
-    res = await req.loadJSON();
-  } catch (_) {
-    if (!req.response) throw new Error(t("aiOffline"));
-  }
-  const code = req.response && req.response.statusCode;
-  if (code === 401) {
-    Keychain.remove(K.aiKey);
-    return { needKey: true };
-  }
-  if (code === 429) throw new Error(t("aiQuota"));
-  const errMsg = (res && res.error && res.error.message) || "";
-  if (/context|too long|maximum.*tokens/i.test(errMsg)) throw new Error(t("aiTooLong"));
-  if (code >= 400 || !res) throw new Error(errMsg || `OpenAI answered HTTP ${code}`);
-  let text = res.output_text || "";
-  if (!text && Array.isArray(res.output)) {
-    text = res.output
-      .flatMap((o) => o.content || [])
-      .filter((c) => c.type === "output_text")
-      .map((c) => c.text)
-      .join("");
+    // Chat Completions doesn't store requests by default, so the child's school data isn't kept on OpenAI's side.
+    text = await aiCall(aiInstructions(aiContext(pack, opened, gradeMax), gradeMax), convo, 2500, "ask");
+  } catch (e) {
+    const m = String((e && e.message) || e);
+    if (/context|too long|maximum.*tokens/i.test(m)) throw new Error(t("aiTooLong"));
+    if (/rate.?limit|quota|overloaded|credit balance/i.test(m)) throw new Error(t("aiQuota"));
+    if (/offline|internet|network|could not connect|timed out/i.test(m)) throw new Error(t("aiOffline"));
+    throw e;
   }
   text = String(text).trim();
   if (!text) throw new Error(t("aiEmpty"));
-  return { answer: text };
-}
-
-async function askKeyNative() {
-  const a = new Alert();
-  a.title = t("aiKeyTitle");
-  a.message = t("aiKeyMsg");
-  a.addSecureTextField("sk-...", "");
-  a.addAction(t("save"));
-  a.addCancelAction(t("cancel"));
-  if ((await a.presentAlert()) === -1) return false;
-  const key = a.textFieldValue(0).trim();
-  if (!/^sk-/.test(key)) {
-    const e = new Alert();
-    e.message = t("aiKeyBad");
-    e.addAction("OK");
-    await e.presentAlert();
-    return false;
-  }
-  Keychain.set(K.aiKey, key);
-  return true;
+  return { answer: text, by: PROVIDERS[provider] };
 }
 
 // ───────────────────────────── 🔔 what's new since the last run ─────────────────────────────
@@ -2321,10 +2616,10 @@ class App {
     const chat = this.chatFor(data);
     return buildHTML({
       ...data,
-      chat: chat.history.map((m) => ({ role: m.role, text: m.text })),
+      chat: chat.history.map((m) => ({ role: m.role, text: m.text, by: m.by })),
       chatInfo: packInfo(chat.pack),
       gradeMax: gradeMaxFor(data.child && data.child.key),
-      hasAiKey: Keychain.contains(K.aiKey),
+      hasAiKey: !!aiKey(),
       update: this.pendingUpdate, // re-offered after every reload of the main page, until answered
       ...extra,
     });
@@ -2341,7 +2636,7 @@ class App {
     const data = this.data || readCache();
     if (!data) throw new Error(t("aiNoData"));
     const chat = this.chatFor(data);
-    const fresh = chat.pack && Date.now() - chat.pack.builtAt < AI.CONTEXT_MAX_AGE_H * 3600000 && chat.pack.today === todayV();
+    const fresh = chat.pack && Date.now() - chat.pack.builtAt < ASK.CONTEXT_MAX_AGE_H * 3600000 && chat.pack.today === todayV();
     if (!force && fresh) return chat;
     chat.pack = await gatherAll(this.api, data, (stage) => this.progress(stage));
     saveChat(chat);
@@ -2431,6 +2726,12 @@ class App {
     try {
       params = JSON.parse(q.p || "{}");
     } catch (_) {}
+    if (AI_ACTIONS.includes(action)) {   // AI settings sheet (app-blueprints · ai-configuration)
+      const msg = await aiAction(action, params);
+      await this.wv.evaluateJavaScript(`window.__aiState(${safeJSON(aiClientState())})`, false).catch(() => {});
+      if (msg) await this.wv.evaluateJavaScript(`window.__aiToast(${safeJSON(msg)})`, false).catch(() => {});
+      return this.reply(q.id, true, {});
+    }
     try {
       switch (action) {
         case "update-later":
@@ -2468,27 +2769,21 @@ class App {
         case "ask": {
           const question = String(params.q || "").trim().slice(0, 4000);
           if (!question) throw new Error("empty question");
-          if (!Keychain.contains(K.aiKey)) return this.reply(q.id, false, "NEED_KEY");
+          if (!aiKey()) return this.reply(q.id, false, "NEED_KEY");
           const chat = await this.ensurePack(false);
           const max = gradeMaxFor(chat.roleKey);
           const r = await aiAsk(chat.pack, this.msgBodies, chat.history, question, max);
           if (r.needKey) return this.reply(q.id, false, "NEED_KEY");
           const at = Date.now();
-          chat.history.push({ role: "user", text: question, at }, { role: "assistant", text: r.answer, at: Date.now() });
+          chat.history.push({ role: "user", text: question, at }, { role: "assistant", text: r.answer, by: r.by, at: Date.now() });
           saveChat(chat);
-          return this.reply(q.id, true, { answer: r.answer, info: packInfo(chat.pack) });
+          return this.reply(q.id, true, { answer: r.answer, by: r.by, info: packInfo(chat.pack) });
         }
         case "scale": {
           const data = this.data || readCache();
           await this.reply(q.id, true, {});
           if (data && (await pickGradeScale(data.child.key, data.child.title))) await this.wv.loadHTML(this.page(data, { warnings: [], startTab: params.tab }));
           return;
-        }
-        case "setkey": {
-          const key = String(params.key || "").trim();
-          if (!/^sk-/.test(key)) throw new Error(t("aiKeyBad"));
-          Keychain.set(K.aiKey, key);
-          return this.reply(q.id, true, {});
         }
         case "clearchat": {
           const data = this.data || readCache();
@@ -2539,7 +2834,7 @@ class App {
     if (session && (session.roles || []).length > 1) actions.push(["switchChild", t("switchChild")]);
     const cur = this.data || readCache();
     if (cur) actions.push(["scale", `${t("scaleMenu")}: 1–${gradeMaxFor(cur.child.key)}`]);
-    actions.push(["lang", t("language")], Keychain.contains(K.aiKey) ? ["aikeyRemove", t("aiKeyRemove")] : ["aikeyAdd", t("aiKeyAdd")]);
+    actions.push(["lang", t("language")], ["ai", aiKey() ? `${t("aiSettings")}: ${PROVIDERS[aiSettings.aiProvider]}` : t("aiSettings")]);
     actions.push(["web", t("openWeb")], ["login", t("changeLogin")], ["signout", t("signOut")]);
     actions.forEach(([, l]) => a.addAction(l));
     a.addCancelAction(t("cancel"));
@@ -2563,14 +2858,7 @@ class App {
       if (cached) return this.wv.loadHTML(this.page(cached, { warnings: [] }));
       return this.reload();
     }
-    if (act === "aikeyRemove") {
-      Keychain.remove(K.aiKey);
-      return this.data && this.wv.loadHTML(this.page(this.data, { warnings: [] }));
-    }
-    if (act === "aikeyAdd") {
-      if (await askKeyNative()) return this.data && this.wv.loadHTML(this.page(this.data, { warnings: [] }));
-      return;
-    }
+    if (act === "ai") return this.wv.evaluateJavaScript("window.__aiOpen && window.__aiOpen()", false).catch(() => {});
     if (act === "web") return Safari.open("https://dienynas.tamo.lt/");
     if (act === "login") {
       if (await askCredentials()) {
@@ -2583,7 +2871,8 @@ class App {
       return;
     }
     if (act === "signout") {
-      [K.user, K.pass, K.role, K.session, K.aiKey].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
+      [K.user, K.pass, K.role, K.session].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
+      Object.keys(PROVIDERS).forEach(removeKey);
       deleteAllChats();
       try {
         fm.listContents(fm.documentsDirectory())
@@ -2660,6 +2949,7 @@ async function runWidget() {
 // ───────────────────────────── entry ─────────────────────────────
 
 async function main() {
+  aiMigrate(["dienynasplus.openai-key"]);   // 1.4.x kept one OpenAI key under another name
   if (config.runsInWidget) return runWidget();
   if (isCheckRun()) return runCheck();
   if (!Keychain.contains(K.user) || !Keychain.contains(K.pass)) {
