@@ -37,7 +37,7 @@ Safari.open("scriptable:///run/Dienynas");
 | | How |
 | --- | --- |
 | Home-screen widget | Add a **Scriptable** widget, edit it, choose **Dienynas**. |
-| ✨ Ask | A [Claude](https://console.anthropic.com/settings/keys) or [OpenAI](https://platform.openai.com/api-keys) API key, added in **••• › AI settings**. Without one the Ask tab stays hidden. |
+| ✨ Ask | A [Claude](https://console.anthropic.com/settings/keys) or [OpenAI](https://platform.openai.com/api-keys) API key, added in **Settings › AI settings**. Without one the Ask tab stays hidden. |
 | 🔔 New-items alerts | Shortcuts automation running **Dienynas** with parameter `check`. [Setup](#-scheduled-checks-get-told-about-anything-new) |
 | 1–7 grading | Grades tab → **Scale 1–10** → pick 1–7. |
 
@@ -92,7 +92,7 @@ Safari.open("scriptable:///run/Dienynas");
 <img src="screenshots/grades.png" width="240" align="right" alt="Grades screen">
 
 - **Subject averages for the last 30 days**, calculated from numeric grades, with a bar for each subject.
-- **Grade scale per child.** Most Lithuanian schools grade 1–10, but some use 1–7. Tap **Scale 1–10** on the Grades tab (or use the ••• menu) to pick 1–10, 1–7, 1–5 or any other top grade. Each child keeps their own setting, and averages, bars and ✨ Ask all use it.
+- **Grade scale per child.** Most Lithuanian schools grade 1–10, but some use 1–7. Tap **Scale 1–10** on the Grades tab (or Settings › Grades) to pick 1–10, 1–7, 1–5 or any other top grade. Each child keeps their own setting, and averages, bars and ✨ Ask all use it.
 - Recent grades, formative assessments (*kaupiamieji*), and an attendance summary with absences and late arrivals.
 
 <br clear="right">
@@ -122,7 +122,7 @@ The data is refreshed automatically when it's more than a few hours old or from 
 
 The assistant is told to answer only from that data, never to invent dates, grades or tasks, and to say so when something isn't there. It judges grades on the child's own scale (1–10, 1–7, …). Lithuanian school text is quoted as written, with a short translation when you ask in English.
 
-It works with Claude or OpenAI, set up the same way as in the other apps (see [app-blueprints](https://github.com/gadominas/app-blueprints)). Open **••• › AI settings** to add your own key, pick any model your key can use, test the connection and see how many tokens Ask has used per day and model. Keys are typed into a native iOS prompt and saved in the iOS Keychain. API usage is billed separately from a chat subscription. Because every question carries the school data and the whole conversation, a question costs roughly a cent or two.
+It works with Claude or OpenAI, set up the same way as in the other apps (see [app-blueprints](https://github.com/gadominas/app-blueprints)). Open **Settings › AI settings** to add your own key, pick any model your key can use, test the connection and see how many tokens Ask has used per day and model. Keys are typed into a native iOS prompt and saved in the iOS Keychain. API usage is billed separately from a chat subscription. Because every question carries the school data and the whole conversation, a question costs roughly a cent or two.
 
 ### Also
 
@@ -131,9 +131,10 @@ It works with Claude or OpenAI, set up the same way as in the other apps (see [a
   <img src="screenshots/today-lt.png" width="240" alt="Today screen in Lithuanian">
 </p>
 
-- **Lithuanian and English** interface, switchable in the ••• menu.
-- **Dark mode** follows the iPhone setting.
-- **Several children on one account:** the app asks whose diary to show and remembers the choice; switch any time from the ••• menu.
+- **Settings** (sliders icon in the header): colours (six palettes or Auto), layout (Comfortable, Compact or one-line Tiny), text size and headline font, plus language, grade scale, Ask, account, updates and tunables with Reset. Changes apply at once and are saved in iCloud Drive › Scriptable › DienynasPlus › `settings.json`; school data, chats and your sign-in stay where they were. The **Built with** section links to the [shared blueprints](https://github.com/gadominas/app-blueprints) the app follows (see [docs/BLUEPRINTS.md](docs/BLUEPRINTS.md)).
+- **Lithuanian and English** interface, switchable in Settings › General.
+- **Dark mode** follows the iPhone setting with Auto colours, or pick a palette in Settings › Appearance.
+- **Several children on one account:** the app asks whose diary to show and remembers the choice; switch any time from Settings › Account.
 - **Home-screen widget** with the current or next lesson, homework due tomorrow and today's messages. Tapping it opens the app.
 - **🔔 Scheduled checks** for new homework, grades, messages and teacher notes, shown as a popup alert or a notification (see below).
 - **Works offline.** The last loaded data is shown straight away and refreshed in the background. If TAMO can't be reached, the saved data stays on screen with a note saying when it's from.
@@ -204,7 +205,7 @@ Everything is in one file. The data layer runs in Scriptable; the interface is a
 - **✨ Ask sends the school data to the AI provider in use** with each question: lessons, homework, classwork, grades, attendance, notices, the calendar, message headers and the text of already-read messages, plus the conversation so far. The child's name isn't sent. OpenAI chat requests aren't stored for later retrieval by default; Anthropic doesn't train on API data by default. If you don't add a key, nothing is ever sent to an AI provider.
 - Your Claude and OpenAI keys are stored only in the iOS Keychain and each is sent only to its own provider. The app's page only ever sees them masked.
 - The Ask conversation and the data gathered for it are saved in Scriptable's local documents folder, one file per child. **Clear memory** deletes that child's file.
-- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in the ••• menu deletes the credentials, the AI keys, the session, the cache, all saved conversations and the record of what's already been shown.
+- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in Settings › Account deletes the credentials, the AI keys, the session, the cache, all saved conversations and the record of what's already been shown.
 - Dienynas+ is **read-only** with one exception, the same as the official app: **opening a message marks it as read** in TAMO.
 
 ## Limitations

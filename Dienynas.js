@@ -21,28 +21,166 @@ const MODERN = "https://api.tamo.lt/";
 const LEGACY = "https://dienynas.tamo.lt/MobileServiceV3/";
 const APP_GUID = "1166cfd3-1be5-4dca-aa64-5aff7bbb8acc"; // build constant the official Android app sends
 const SESSION_TTL_MIN = 25;
-const WIDGET_CACHE_MIN = 30;
 
-const CONFIG = {
-  CHECK_UPDATES: true,   // offer new versions from GitHub (asks again 2 days after "Later")
-};
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
 const UPDATE_SNOOZE_MS = 2 * 24 * 3600 * 1000;   // "Later" = 2 days
 const KC_UPDATE_SNOOZE = 'dienynasplus-update-snooze';   // Keychain key, unique per app
 
+// ───────── Blueprints ─────────
+// Shared blueprints this app was built with (github.com/gadominas/app-blueprints). One line per blueprint, in this exact shape:
+// inventory tools read it without running the script, and Settings › Built with shows it.
+const BLUEPRINTS_REPO = 'https://github.com/gadominas/app-blueprints';
+const BLUEPRINTS = [
+  { id: 'in-app-updates', name: 'In-app updates', version: '1.0.0', since: '1.4.0' },
+  { id: 'settings', name: 'Settings', version: '1.0.0', since: '1.6.0' },
+  { id: 'ai-configuration', name: 'AI configuration', version: '1.0.0', since: '1.5.0' },
+];
+
 const K = {
   user: "dienynasplus.username",
   pass: "dienynasplus.password",
   role: "dienynasplus.role",
-  lang: "dienynasplus.lang",
   session: "dienynasplus.session",
+  // 1.5.x kept the language and grade scales here; moved to settings.json on first run
+  lang: "dienynasplus.lang",
   scale: "dienynasplus.grade-scale",
 };
+
+// ───────────────────────────── settings (app-blueprints · settings) ─────────────────────────────
+// Choices live in settings.json in iCloud Drive › Scriptable › DienynasPlus; school data, chats and sign-in stay where they were.
+const SET_APP = "DienynasPlus";
+const sfm = (() => { try { return FileManager.iCloud(); } catch (e) { return FileManager.local(); } })();
+const SET_DIR = sfm.joinPath(sfm.documentsDirectory(), SET_APP);
+const SP = (n) => sfm.joinPath(SET_DIR, n + ".json");
+async function load(n, def) {
+  const p = SP(n);
+  if (!sfm.fileExists(p)) return def;
+  try {
+    if (sfm.isFileStoredIniCloud(p) && !sfm.isFileDownloaded(p)) await sfm.downloadFileFromiCloud(p);
+    return JSON.parse(sfm.readString(p));
+  } catch (e) { return def; }   // a broken file falls back to defaults, never crashes
+}
+const write = (n, v) => {
+  try { if (!sfm.fileExists(SET_DIR)) sfm.createDirectory(SET_DIR, true); sfm.writeString(SP(n), JSON.stringify(v)); return true; }
+  catch (e) { console.warn(`Couldn't save ${n}: ${e}`); return false; }
+};
+
+// Defaults first, saved choices on top (loadSettings runs before every branch: app, widget, Shortcuts check).
+const settings = {
+  lang: "en", checkUpdates: true,   // offer new versions from GitHub (asks again 2 days after "Later")
+  theme: "auto", density: "comfortable", font: "sans", textSize: 1,
+  gradeScales: {},   // top grade per child: { roleKey: 10 }
+  cfg: {},
+};
+const saveSettings = () => write("settings", settings);
+
+// Every key the page may change, with its check and what closing Settings must then do.
+const SET_KEYS = {
+  lang: [(v) => ["en", "lt"].includes(v), "render"], checkUpdates: ["bool", ""],
+  theme: [(v) => v === "auto" || !!PALETTES[v], ""], density: [(v) => ["comfortable", "compact", "tiny"].includes(v), ""],
+  font: [(v) => ["sans", "serif"].includes(v), ""], textSize: [(v) => [0.92, 1, 1.12, 1.25].includes(+v), ""],
+};
+// Returns the effect ('' or 'render'), or null when the key or value isn't allowed.
+function setSetting(k, v) {
+  const s = SET_KEYS[k];
+  if (!s) return null;
+  if (s[0] === "bool") v = v === true || v === "true";
+  else if (!s[0](v)) return null;
+  if (k === "textSize") v = +v;
+  settings[k] = v;
+  return s[1];
+}
+
+async function loadSettings() {
+  const saved = await load("settings", null);
+  if (saved) Object.assign(settings, saved);
+  else {   // first run of 1.6: move what 1.5.x kept in the Keychain into settings.json
+    if (Keychain.contains(K.lang)) settings.lang = Keychain.get(K.lang);
+    try { if (Keychain.contains(K.scale)) settings.gradeScales = JSON.parse(Keychain.get(K.scale)) || {}; } catch (_) {}
+    if (saveSettings()) [K.lang, K.scale].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
+  }
+  const d = { lang: "en", theme: "auto", density: "comfortable", font: "sans", textSize: 1 };
+  for (const k of Object.keys(d)) if (setSetting(k, settings[k]) === null) settings[k] = d[k];
+  if (!settings.gradeScales || typeof settings.gradeScales !== "object") settings.gradeScales = {};
+  settings.cfg = settings.cfg && typeof settings.cfg === "object" ? settings.cfg : {};
+}
+
+// Everything tunable lives here; the Settings screen edits these (stored in settings.cfg, defaults below).
+// Group titles and labels carry a Lithuanian version (lt), shown when the app language is Lithuanian.
+const CONFIG = [
+  [{ en: "What Ask reads", lt: "Ką skaito „Klausk“" }, [
+    { k: "askMaxAgeH", label: "Gather school data again after", help: "Ask re-reads TAMO before the next question when its data is older", unit: "h", def: 4, min: 1, max: 24, step: 1,
+      lt: { label: "Iš naujo surinkti duomenis po", help: "Prieš kitą klausimą „Klausk“ vėl nuskaito TAMO, jei duomenys senesni", unit: "val." } },
+    { k: "weeksBack", label: "Lesson weeks before this week", unit: "weeks", def: 2, min: 0, max: 6, step: 1, lt: { label: "Pamokų savaitės prieš šią", unit: "sav." } },
+    { k: "weeksAhead", label: "Lesson weeks after this week", unit: "weeks", def: 2, min: 0, max: 6, step: 1, lt: { label: "Pamokų savaitės po šios", unit: "sav." } },
+    { k: "messageDays", label: "Message headers from the last", unit: "days", def: 60, min: 14, max: 180, step: 1, lt: { label: "Žinučių antraštės per paskutines", unit: "d." } },
+    { k: "bodyDays", label: "Text of read messages from the last", help: "Unread messages stay unread", unit: "days", def: 45, min: 7, max: 120, step: 1,
+      lt: { label: "Perskaitytų žinučių tekstas per paskutines", help: "Neperskaitytos žinutės lieka neperskaitytos", unit: "d." } },
+    { k: "maxBodies", label: "At most this many message texts", unit: "messages", def: 30, min: 5, max: 60, step: 5, lt: { label: "Daugiausia žinučių tekstų", unit: "žin." } },
+  ]],
+  [{ en: "TAMO", lt: "TAMO" }, [
+    { k: "requestWait", label: "Time limit per request to TAMO", unit: "s", def: 25, min: 10, max: 60, step: 5, lt: { label: "Laiko limitas vienai užklausai į TAMO", unit: "s" } },
+  ]],
+  [{ en: "Widget", lt: "Valdiklis" }, [
+    { k: "widgetRefreshMin", label: "Ask iOS to refresh every", help: "iOS decides the exact timing", unit: "min", def: 20, min: 15, max: 120, step: 5,
+      lt: { label: "Prašyti iOS atnaujinti kas", help: "Tikslų laiką nusprendžia iOS", unit: "min." } },
+    { k: "widgetCacheMin", label: "Widget reuses data younger than", help: "Older data is loaded from TAMO again", unit: "min", def: 30, min: 10, max: 120, step: 5,
+      lt: { label: "Valdiklis naudoja duomenis, jaunesnius nei", help: "Senesni duomenys vėl įkeliami iš TAMO", unit: "min." } },
+  ]],
+];
+const CFG_FLAT = CONFIG.flatMap(([, items]) => items);
+const cfgDef = (k) => CFG_FLAT.find((x) => x.k === k);
+const cfg = (k) => { const v = settings.cfg && settings.cfg[k]; return v === undefined ? cfgDef(k).def : v; };
+function setCfg(k, v) {
+  const d = cfgDef(k);
+  if (!d) return "Unknown setting";
+  settings.cfg = settings.cfg || {};
+  if (v === null) { delete settings.cfg[k]; return ""; }   // Reset
+  v = Number(String(v).replace(",", "."));   // accept a decimal comma
+  if (!isFinite(v)) v = d.def;
+  v = Math.min(d.max, Math.max(d.min, v));
+  v = d.step < 1 ? Math.round(v / d.step) * d.step : Math.round(v);
+  v = Number(v.toFixed(2));
+  if (v === d.def) delete settings.cfg[k]; else settings.cfg[k] = v;   // store only what differs
+  return "";
+}
+
+// Six palettes on the shared colour tokens. TAMO blue is the accent in all of them; mark (the yellow
+// "now / today" highlighter), markInk and green are this app's own extra colours.
+const PALETTES = {
+  ink:      { paper: "#EEF1F6", sheet: "#FFFFFF", ink: "#15203A", ink2: "#33405E", muted: "#5F6A84", rule: "#DCE1EA", signal: "#2450B8", signalWash: "#E2E9FB", amber: "#9A6200", amberWash: "#FDF0D2", danger: "#C8243A", mark: "#FFD84D", markInk: "#3B2F00", green: "#14866A", scheme: "light" },
+  sepia:    { paper: "#F3EAD6", sheet: "#FBF5E6", ink: "#2A1F14", ink2: "#4B3B2A", muted: "#73604A", rule: "#E1D3B5", signal: "#2B4E9E", signalWash: "#E3E4EC", amber: "#A16207", amberWash: "#F6E5BF", danger: "#9F1239", mark: "#F5CF55", markInk: "#3B2F00", green: "#3F7A3A", scheme: "light" },
+  mint:     { paper: "#F1F6F3", sheet: "#FFFFFF", ink: "#0D2318", ink2: "#2C4A3B", muted: "#556D60", rule: "#D3E2D9", signal: "#2450B8", signalWash: "#E0E8F8", amber: "#B45309", amberWash: "#FBEED8", danger: "#B91C1C", mark: "#FFD84D", markInk: "#3B2F00", green: "#15803D", scheme: "light" },
+  contrast: { paper: "#FFFFFF", sheet: "#FFFFFF", ink: "#000000", ink2: "#111111", muted: "#333333", rule: "#9A9A9A", signal: "#0033CC", signalWash: "#E0E8FF", amber: "#7A4B00", amberWash: "#FFEEC2", danger: "#A30000", mark: "#FFD400", markInk: "#000000", green: "#006B3C", scheme: "light" },
+  slate:    { paper: "#1C2128", sheet: "#22272E", ink: "#E6EDF3", ink2: "#C5CED8", muted: "#9AA5B1", rule: "#373E47", signal: "#7FA3FF", signalWash: "#1D3350", amber: "#E3B341", amberWash: "#3A2F12", danger: "#FF8A7A", mark: "#E8BE2E", markInk: "#2A2100", green: "#3CC59E", scheme: "dark" },
+  night:    { paper: "#0C111C", sheet: "#161E2E", ink: "#E8ECF4", ink2: "#C9D0DE", muted: "#9AA4BA", rule: "#253049", signal: "#7FA3FF", signalWash: "#16233F", amber: "#F0C52E", amberWash: "#2D240C", danger: "#FF6B7D", mark: "#F0C52E", markInk: "#2A2100", green: "#3CC59E", scheme: "dark" },
+};
+const PALETTE_CSS = Object.entries(PALETTES).map(([k, p]) => `[data-theme=${k}]{--paper:${p.paper};--sheet:${p.sheet};--ink:${p.ink};--ink-2:${p.ink2};--muted:${p.muted};--rule:${p.rule};--signal:${p.signal};--signal-wash:${p.signalWash};--amber:${p.amber};--amber-wash:${p.amberWash};--danger:${p.danger};--mark:${p.mark};--markInk:${p.markInk};--green:${p.green};color-scheme:${p.scheme}}`).join("\n");
+
+// The look for the first paint, so the page never flashes the default palette (the page keeps Auto live afterwards).
+function lookState() {
+  return { theme: settings.theme, density: settings.density, font: settings.font, textSize: settings.textSize,
+           shown: settings.theme === "auto" ? (Device.isUsingDarkAppearance() ? "night" : "ink") : settings.theme };
+}
+
+// What the Settings sheet shows, in the app's language. Keys and passwords never go to the page.
+function settingsState(child, canSwitch) {
+  const lt = LANG() === "lt", loc = (d) => (lt && d.lt ? Object.assign({}, d, d.lt) : d);
+  return {
+    lang: LANG(), settings: Object.fromEntries(Object.keys(SET_KEYS).map((k) => [k, settings[k]])),
+    cfg: Object.fromEntries(CFG_FLAT.map((d) => [d.k, cfg(d.k)])),
+    cfgSchema: CONFIG.map(([title, items]) => ({ title: lt ? title.lt : title.en, items: items.map((d) => { const x = loc(d); delete x.lt; return x; }) })),
+    palettes: PALETTES, version: VERSION, appName: APP_NAME,
+    blueprints: BLUEPRINTS, blueprintsRepo: BLUEPRINTS_REPO,
+    child: child ? { name: child.title, scale: gradeMaxFor(child.key) } : null, canSwitch: !!canSwitch,
+    hasKey: !!aiKey(), aiStatus: aiStatusLine(),
+  };
+}
 
 // ───────────────────────────── text & date helpers ─────────────────────────────
 
@@ -259,7 +397,7 @@ class Tamo {
     if (legacy && session) params.push(["authToken", session.token]);
     const qs = params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
     const req = new Request((legacy ? LEGACY : MODERN) + path + (qs ? `?${qs}` : ""));
-    req.timeoutInterval = 25;
+    req.timeoutInterval = cfg("requestWait");
     const headers = { Accept: "application/json", "User-Agent": "okhttp/4.9.1" };
     if (!legacy && session) {
       headers.Authorization = `Bearer ${session.token}`;
@@ -626,7 +764,7 @@ function clearCache() {
 
 // ───────────────────────────── language ─────────────────────────────
 
-const LANG = () => (Keychain.contains(K.lang) ? Keychain.get(K.lang) : "en");
+const LANG = () => settings.lang;
 const NATIVE_TEXT = {
   en: {
     pickChild: "Whose diary?",
@@ -768,87 +906,88 @@ const CSS = `
 .badge-ex{display:inline-block;font-size:12px;font-weight:600;color:var(--muted);border:1px dashed var(--muted);border-radius:6px;padding:1px 8px}
 .bubble.assistant .badge-ai{margin-bottom:6px}
 :root{
-  --paper:#EEF1F6; --card:#FFFFFF; --ink:#15203A; --muted:#5F6A84; --faint:#8D96AB; --line:#DCE1EA;
-  --mark:#FFD84D; --markInk:#3B2F00; --red:#C8243A; --green:#14866A; --blue:#2450B8; --chip:#E4E9F2;
-  color-scheme: light dark;
+  --ts:1; --serif: ui-serif, "New York", Georgia, serif; --sans: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --rounded: ui-rounded, "SF Pro Rounded", -apple-system, sans-serif; --display: var(--rounded);
+  --rowpad:12px 14px; --lessonpad:11px 14px; --gap:18px;
 }
-@media (prefers-color-scheme: dark){
-  :root{ --paper:#0C111C; --card:#161E2E; --ink:#E8ECF4; --muted:#9AA4BA; --faint:#6E7891; --line:#253049;
-    --mark:#F0C52E; --markInk:#2A2100; --red:#FF6B7D; --green:#3CC59E; --blue:#7FA3FF; --chip:#212B40; }
-}
+html[data-font=serif]{--display:var(--serif)}
+${PALETTE_CSS}
+:root{--card:var(--sheet);--line:var(--rule);--blue:var(--signal);--red:var(--danger);--faint:color-mix(in srgb,var(--muted) 72%,var(--paper));--chip:color-mix(in srgb,var(--ink) 8%,var(--sheet))}
+body.d-compact{--rowpad:8px 12px;--lessonpad:7px 12px;--gap:12px}
+body.d-tiny{--rowpad:7px 12px;--lessonpad:6px 12px;--gap:10px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--paper);color:var(--ink);touch-action:pan-x pan-y;-webkit-user-select:none;user-select:none}
 .body,.text,.detail p{-webkit-user-select:text;user-select:text}
-body{font:16px/1.4 -apple-system,"SF Pro Text",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 calc(78px + env(safe-area-inset-bottom));-webkit-text-size-adjust:100%}
+body{font:calc(16px * var(--ts))/1.4 var(--sans);padding:env(safe-area-inset-top) 0 calc(78px + env(safe-area-inset-bottom));-webkit-text-size-adjust:100%}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px}
 .num{font-family:ui-rounded,"SF Pro Rounded",-apple-system,sans-serif;font-variant-numeric:tabular-nums}
 header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 6px}
-.who{font-size:13px;color:var(--muted);line-height:1.3}
-.who b{color:var(--ink);font-weight:600;font-size:15px;display:block}
+.who{font-size:calc(13px * var(--ts));color:var(--muted);line-height:1.3}
+.who b{color:var(--ink);font-family:var(--display);font-weight:600;font-size:calc(15px * var(--ts));display:block}
 .tools{display:flex;gap:6px}
 .icon-btn{width:38px;height:38px;border-radius:19px;background:var(--card);display:grid;place-items:center;border:1px solid var(--line)}
 .icon-btn svg{width:19px;height:19px;stroke:var(--ink);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .icon-btn.spin svg{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-h1.date{font:800 30px/1.08 ui-rounded,"SF Pro Rounded",-apple-system,sans-serif;letter-spacing:-.02em;margin:4px 18px 2px}
-.sub{margin:0 18px 14px;color:var(--muted);font-size:15px}
+h1.date{font:800 calc(30px * var(--ts))/1.08 var(--display);letter-spacing:-.02em;margin:4px 18px 2px}
+.sub{margin:0 18px 14px;color:var(--muted);font-size:calc(15px * var(--ts))}
 main{padding:0 14px}
-section{margin:18px 0 0}
-h2{font-size:19px;font-weight:700;margin:0 4px 8px;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
-h2 small{font-size:14px;font-weight:500;color:var(--muted)}
+section{margin:var(--gap) 0 0}
+h2{font-family:var(--display);font-size:calc(19px * var(--ts));font-weight:700;margin:0 4px 8px;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
+h2 small{font-size:calc(14px * var(--ts));font-weight:500;color:var(--muted)}
 .panel{background:var(--card);border-radius:16px;border:1px solid var(--line);overflow:hidden}
-.row{display:flex;gap:12px;padding:12px 14px;border-top:1px solid var(--line);align-items:flex-start;text-align:left;width:100%}
+.row{display:flex;gap:12px;padding:var(--rowpad);border-top:1px solid var(--line);align-items:flex-start;text-align:left;width:100%}
 .row:first-child{border-top:0}
 .row .main{flex:1;min-width:0}
 .row .title{font-weight:600}
-.row .meta{color:var(--muted);font-size:14px}
-.row .body{font-size:15px;margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
-.empty{padding:16px 14px;color:var(--muted);font-size:15px}
+.row .meta{color:var(--muted);font-size:calc(14px * var(--ts))}
+.row .body{font-size:calc(15px * var(--ts));margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.empty{padding:16px 14px;color:var(--muted);font-size:calc(15px * var(--ts))}
 .bar{width:5px;align-self:stretch;border-radius:3px;flex:none}
-.pill{display:inline-block;font-size:12.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--ink);margin:4px 4px 0 0;white-space:nowrap}
+.pill{display:inline-block;font-size:calc(12.5px * var(--ts));font-weight:600;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--ink);margin:4px 4px 0 0;white-space:nowrap}
 .pill.red{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
 .pill.green{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
 .pill.mark{background:var(--mark);color:var(--markInk)}
-.pill.grade{font-family:ui-rounded,-apple-system,sans-serif;font-size:14px;padding:1px 9px}
+.pill.grade{font-family:ui-rounded,-apple-system,sans-serif;font-size:calc(14px * var(--ts));padding:1px 9px}
 .dot{width:9px;height:9px;border-radius:5px;background:var(--blue);flex:none;margin-top:7px}
 .dot.off{background:transparent}
 /* Now card: the one loud element */
 .now{background:var(--mark);color:var(--markInk);border-radius:20px;padding:16px 18px;position:relative;overflow:hidden}
-.now .k{font-size:14px;font-weight:600;opacity:.75}
-.now .s{font:800 26px/1.1 ui-rounded,-apple-system,sans-serif;margin:2px 0 4px;letter-spacing:-.01em}
-.now .m{font-size:15px;font-weight:500}
+.now .k{font-size:calc(14px * var(--ts));font-weight:600;opacity:.75}
+.now .s{font:800 calc(26px * var(--ts))/1.1 var(--display);margin:2px 0 4px;letter-spacing:-.01em}
+.now .m{font-size:calc(15px * var(--ts));font-weight:500}
 .now .progress{position:absolute;left:0;bottom:0;height:6px;background:var(--markInk);opacity:.85}
 .now.quiet{background:var(--card);color:var(--ink);border:1px solid var(--line)}
 .now.quiet .k{color:var(--muted);opacity:1}
 /* Lesson timeline */
-.lesson{display:flex;gap:12px;padding:11px 14px;border-top:1px solid var(--line);width:100%;text-align:left;cursor:pointer}
+.lesson{display:flex;gap:12px;padding:var(--lessonpad);border-top:1px solid var(--line);width:100%;text-align:left;cursor:pointer}
 .lesson:first-child{border-top:0}
-.lesson .n{width:30px;height:30px;border-radius:15px;display:grid;place-items:center;font-weight:700;font-size:15px;color:#fff;flex:none}
-.lesson .when{font-size:13px;color:var(--muted)}
+.lesson .n{width:30px;height:30px;border-radius:15px;display:grid;place-items:center;font-weight:700;font-size:calc(15px * var(--ts));color:#fff;flex:none}
+.lesson .when{font-size:calc(13px * var(--ts));color:var(--muted)}
 .lesson.past{opacity:.55}
 .lesson.current{background:color-mix(in srgb,var(--mark) 28%,transparent)}
 .lesson .more{display:none;margin-top:6px}
 .lesson.open .more{display:block}
-.detail{margin-top:8px;font-size:15px}
-.detail b{font-weight:600;display:block;font-size:13px;color:var(--muted)}
+.detail{margin-top:8px;font-size:calc(15px * var(--ts))}
+.detail b{font-weight:600;display:block;font-size:calc(13px * var(--ts));color:var(--muted)}
 .detail p{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
-.file{display:inline-flex;gap:6px;align-items:center;font-size:14px;color:var(--blue);font-weight:600;margin:6px 10px 0 0}
+.file{display:inline-flex;gap:6px;align-items:center;font-size:calc(14px * var(--ts));color:var(--blue);font-weight:600;margin:6px 10px 0 0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px}
-.chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border-radius:999px;padding:5px 11px;font-size:14px;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border-radius:999px;padding:5px 11px;font-size:calc(14px * var(--ts));font-weight:600}
 .chip i{width:8px;height:8px;border-radius:4px;display:inline-block}
 /* Segmented + week nav */
 .seg{display:flex;background:var(--chip);border-radius:12px;padding:3px;margin:0 0 12px}
-.seg button{flex:1;padding:7px 4px;border-radius:9px;font-size:14px;font-weight:600;color:var(--muted)}
+.seg button{flex:1;padding:7px 4px;border-radius:9px;font-size:calc(14px * var(--ts));font-weight:600;color:var(--muted)}
 .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .weeknav{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px}
-.weeknav .lbl{font-weight:700;font-size:17px;text-align:center}
-.weeknav .lbl small{display:block;font-weight:500;color:var(--muted);font-size:13px}
+.weeknav .lbl{font-weight:700;font-size:calc(17px * var(--ts));text-align:center}
+.weeknav .lbl small{display:block;font-weight:500;color:var(--muted);font-size:calc(13px * var(--ts))}
 .days{display:grid;grid-template-columns:repeat(var(--cols,5),1fr);gap:6px;margin:0 0 12px}
 .day{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 0 7px;text-align:center}
-.day .w{font-size:12.5px;color:var(--muted);font-weight:600}
-.day .d{font-size:20px;font-weight:800}
-.day .c{font-size:11.5px;color:var(--faint)}
+.day .w{font-size:calc(12.5px * var(--ts));color:var(--muted);font-weight:600}
+.day .d{font-size:calc(20px * var(--ts));font-weight:800}
+.day .c{font-size:calc(11.5px * var(--ts));color:var(--faint)}
 .day.on{background:var(--ink);border-color:var(--ink)}
 .day.on .w,.day.on .d,.day.on .c{color:var(--card)}
 .day.today .d{text-decoration:underline;text-decoration-color:var(--mark);text-decoration-thickness:4px;text-underline-offset:3px}
@@ -858,8 +997,8 @@ h2 small{font-size:14px;font-weight:500;color:var(--muted)}
 .chart .col{width:100%;max-width:34px;border-radius:8px 8px 4px 4px;background:var(--chip);position:relative;min-height:6px}
 .chart .col.has{background:var(--blue)}
 .chart .col .u{position:absolute;left:0;right:0;bottom:0;background:var(--mark);border-radius:0 0 4px 4px}
-.chart .cnt{font-size:14px;font-weight:700}
-.chart .w{font-size:12px;color:var(--muted);font-weight:600}
+.chart .cnt{font-size:calc(14px * var(--ts));font-weight:700}
+.chart .w{font-size:calc(12px * var(--ts));color:var(--muted);font-weight:600}
 .chart button.on .w{color:var(--ink);text-decoration:underline;text-decoration-thickness:3px;text-decoration-color:var(--mark);text-underline-offset:3px}
 /* Grades */
 .avg{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--line)}
@@ -867,34 +1006,34 @@ h2 small{font-size:14px;font-weight:500;color:var(--muted)}
 .avg .s{flex:1;font-weight:600;min-width:0}
 .avg .track{flex:1.2;height:8px;border-radius:4px;background:var(--chip);overflow:hidden}
 .avg .fill{height:100%;border-radius:4px}
-.avg .v{width:40px;text-align:right;font-weight:800;font-size:17px}
+.avg .v{width:40px;text-align:right;font-weight:800;font-size:calc(17px * var(--ts))}
 /* Tab bar */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-nav.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--faint);position:relative;padding:4px 0}
+nav.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:calc(11px * var(--ts));font-weight:600;color:var(--faint);position:relative;padding:4px 0}
 nav.tabs svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 nav.tabs button.on{color:var(--blue)}
-nav.tabs .badge{position:absolute;top:0;left:calc(50% + 6px);background:var(--red);color:#fff;font-size:11px;font-weight:700;border-radius:9px;min-width:18px;height:18px;padding:0 5px;display:grid;place-items:center}
+nav.tabs .badge{position:absolute;top:0;left:calc(50% + 6px);background:var(--red);color:#fff;font-size:calc(11px * var(--ts));font-weight:700;border-radius:9px;min-width:18px;height:18px;padding:0 5px;display:grid;place-items:center}
 /* Sheet */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:10}
 .sheet{position:fixed;left:0;right:0;bottom:0;max-height:88vh;overflow:auto;background:var(--card);border-radius:20px 20px 0 0;padding:16px 18px calc(24px + env(safe-area-inset-bottom));transform:translateY(100%);visibility:hidden;transition:transform .25s ease,visibility 0s linear .25s;z-index:11}
 .open-sheet .scrim{display:block}
 .open-sheet .sheet{transform:none;visibility:visible;transition:transform .25s ease}
 .sheet .x{float:right;font-weight:600;color:var(--blue)}
-.sheet h3{font-size:20px;margin:28px 0 4px;line-height:1.25}
-.sheet .meta{color:var(--muted);font-size:14px}
-.sheet .text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:16px;line-height:1.5;margin-top:14px}
-.banner{margin:12px 4px 0;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red);font-size:14px}
+.sheet h3{font-size:calc(20px * var(--ts));margin:28px 0 4px;line-height:1.25}
+.sheet .meta{color:var(--muted);font-size:calc(14px * var(--ts))}
+.sheet .text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:calc(16px * var(--ts));line-height:1.5;margin-top:14px}
+.banner{margin:12px 4px 0;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red);font-size:calc(14px * var(--ts))}
 .banner.info{background:var(--chip);color:var(--ink)}
-footer{color:var(--faint);font-size:12.5px;text-align:center;margin:22px 0 8px}
+footer{color:var(--faint);font-size:calc(12.5px * var(--ts));text-align:center;margin:22px 0 8px}
 /* Ask */
 .icon-btn.on{background:var(--blue);border-color:var(--blue)}
 .icon-btn.on svg{stroke:#fff}
 .askwrap{display:flex;flex-direction:column;min-height:calc(100vh - 190px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
 .chat{flex:1;display:flex;flex-direction:column;gap:10px;padding-top:14px}
-.intro{color:var(--muted);font-size:15px;margin:2px 4px 12px}
+.intro{color:var(--muted);font-size:calc(15px * var(--ts));margin:2px 4px 12px}
 .sugg{display:flex;flex-wrap:wrap;gap:8px}
-.sugg button{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px 12px;font-size:15px;text-align:left}
-.bubble{max-width:88%;padding:10px 13px;border-radius:18px;font-size:16px;line-height:1.45;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
+.sugg button{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px 12px;font-size:calc(15px * var(--ts));text-align:left}
+.bubble{max-width:88%;padding:10px 13px;border-radius:18px;font-size:calc(16px * var(--ts));line-height:1.45;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
 .bubble.user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:6px;white-space:pre-wrap}
 .bubble.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
 .bubble.error{align-self:flex-start;background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
@@ -904,44 +1043,111 @@ footer{color:var(--faint);font-size:12.5px;text-align:center;margin:22px 0 8px}
 .typing i{width:7px;height:7px;border-radius:4px;background:var(--faint);animation:blink 1.2s infinite}
 .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
-.mem{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:10px 0 12px;font-size:14px}
+.mem{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:10px 0 12px;font-size:calc(14px * var(--ts))}
 .mem.err{color:var(--red)}
 .mem-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.mem-h span{color:var(--faint);font-size:13px}
+.mem-h span{color:var(--faint);font-size:calc(13px * var(--ts))}
 .mem-p{color:var(--muted);margin-top:4px;line-height:1.4}
 .mem-a{display:flex;gap:18px;margin-top:8px}
-.lnk{color:var(--blue);font-weight:600;font-size:14px}
+.lnk{color:var(--blue);font-weight:600;font-size:calc(14px * var(--ts))}
 .lnk.red{color:var(--red)}
 #upd{position:fixed;inset:0;z-index:48;background:rgba(0,0,0,.55);display:flex;align-items:flex-end}
 .updp{width:100%;max-height:92vh;overflow:auto;background:var(--card);color:var(--ink);border-radius:22px 22px 0 0;padding:20px 18px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
-.updtag{align-self:flex-start;background:var(--blue);color:var(--paper);font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px}
-.updt{margin:6px 0 0;font:800 22px/1.2 ui-rounded,"SF Pro Rounded",-apple-system,sans-serif}
-.upds{color:var(--muted);font-size:14px}
+.updtag{align-self:flex-start;background:var(--blue);color:var(--paper);font-size:calc(12px * var(--ts));font-weight:800;padding:4px 10px;border-radius:999px}
+.updt{margin:6px 0 0;font:800 calc(22px * var(--ts))/1.2 ui-rounded,"SF Pro Rounded",-apple-system,sans-serif}
+.upds{color:var(--muted);font-size:calc(14px * var(--ts))}
 .updl{display:flex;flex-direction:column;gap:10px;margin:8px 0 6px}
 .updi{display:flex;gap:12px;align-items:flex-start;background:var(--chip);border-radius:14px;padding:12px}
-.updic{font-size:24px;line-height:1.1;flex:none}
-.updi b{display:block;font-size:15px}
-.updi span{display:block;color:var(--muted);font-size:13px;line-height:1.35;margin-top:2px}
-.updmsg{font-size:15px}
+.updic{font-size:calc(24px * var(--ts));line-height:1.1;flex:none}
+.updi b{display:block;font-size:calc(15px * var(--ts))}
+.updi span{display:block;color:var(--muted);font-size:calc(13px * var(--ts));line-height:1.35;margin-top:2px}
+.updmsg{font-size:calc(15px * var(--ts))}
 .updmsg:empty{display:none}
-.updgo{padding:13px;font-size:16px;font-weight:700;border-radius:14px;background:var(--blue);color:var(--paper)}
+.updgo{padding:13px;font-size:calc(16px * var(--ts));font-weight:700;border-radius:14px;background:var(--blue);color:var(--paper)}
 .updgo:disabled{opacity:.6}
-.updlater{padding:11px;font-size:15px;font-weight:600;border-radius:14px;background:var(--chip);color:inherit}
+.updlater{padding:11px;font-size:calc(15px * var(--ts));font-weight:600;border-radius:14px;background:var(--chip);color:inherit}
 .ver{display:block;margin-top:2px}
-.keycard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;font-size:15px}
+.keycard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;font-size:calc(15px * var(--ts))}
 .keycard p{margin:0 0 10px;color:var(--muted)}
 .keyrow{display:flex;gap:8px}
 .keyrow input{flex:1;min-width:0;font:16px -apple-system,sans-serif;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink);-webkit-user-select:text;user-select:text}
 .keyrow button,.newchat{background:var(--ink);color:var(--card);border-radius:12px;padding:10px 14px;font-weight:700}
-.newchat{background:var(--chip);color:var(--ink);font-size:14px;padding:6px 12px;border-radius:999px}
+.newchat{background:var(--chip);color:var(--ink);font-size:calc(14px * var(--ts));padding:6px 12px;border-radius:999px}
 .composer{position:sticky;bottom:calc(72px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:flex-end;padding:12px 0 8px;background:linear-gradient(to bottom,transparent,var(--paper) 35%)}
 .composer textarea{flex:1;font:16px/1.35 -apple-system,"SF Pro Text",sans-serif;padding:10px 14px;border-radius:21px;border:1px solid var(--line);background:var(--card);color:var(--ink);resize:none;height:44px;max-height:130px;-webkit-user-select:text;user-select:text;outline:none}
 .composer textarea:focus{border-color:var(--blue)}
 .composer .send{width:44px;height:44px;border-radius:22px;background:var(--blue);display:grid;place-items:center;flex:none}
 .composer .send:disabled{opacity:.4}
 .composer .send svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.askhint{color:var(--faint);font-size:12.5px;text-align:center;margin:2px 0 0}
+.askhint{color:var(--faint);font-size:calc(12.5px * var(--ts));text-align:center;margin:2px 0 0}
 @media (prefers-reduced-motion: reduce){ .sheet{transition:none} .icon-btn.spin svg{animation:none} .typing i{animation:none;opacity:.6} }
+
+/* Tiny: one line per item; tap a homework item or note to see all of it */
+body.d-tiny .row .main{display:flex;align-items:baseline;gap:8px;flex-wrap:nowrap}
+body.d-tiny .row .title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.d-tiny .row:not(.open) .body,body.d-tiny .row:not(.open) .file,body.d-tiny button.row .main .meta{display:none}
+body.d-tiny .row .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0!important}
+body.d-tiny .row.open .main{flex-wrap:wrap}
+body.d-tiny .row.open .title{white-space:normal}
+body.d-tiny .row .pill{margin-top:0}
+body.d-tiny .lesson .when{display:inline;margin-left:6px}
+/* Settings sheet (scoped: the app already uses .seg, .sheet and .chip) */
+#cfgsheet{position:fixed;inset:0;z-index:50;background:var(--paper);color:var(--ink);transform:translateY(102%);visibility:hidden;transition:transform .28s ease,visibility 0s linear .28s;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;text-align:left}
+#cfgsheet.open{transform:none;visibility:visible;transition:transform .28s ease}
+#cfgsheet button{font:inherit;color:inherit;background:none;border:0;border-radius:0;padding:0;font-weight:inherit;cursor:pointer;text-align:inherit}
+#cfgsheet .sh-head{position:sticky;top:0;z-index:2;background:var(--paper);display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 14px) 18px 12px;border-bottom:1px solid var(--rule)}
+#cfgsheet .sh-head h2{font:700 calc(24px * var(--ts))/1 var(--display);margin:0}
+#cfgsheet .sh-body{padding:16px 18px calc(env(safe-area-inset-bottom) + 40px);max-width:680px;margin:0 auto}
+#cfgsheet .link{color:var(--signal);font-weight:600;font-size:16px}
+#cfgsheet .link.small{font-size:calc(14px * var(--ts))}
+#cfgsheet .hint{font-size:calc(13px * var(--ts));color:var(--muted);margin:8px 2px 0}
+#cfgsheet .muted{color:var(--muted)}
+#cfgsheet .sec{display:block;font:700 calc(17px * var(--ts))/1.2 var(--display);color:var(--ink);margin:26px 0 6px}
+#cfgsheet .srow{display:flex;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid var(--rule)}
+#cfgsheet .grow{flex:1;min-width:0}
+#cfgsheet .grow b{display:block;font-weight:600}
+#cfgsheet .grow small{display:block;font-size:calc(13px * var(--ts));color:var(--ink-2)}
+#cfgsheet .switch{width:46px;height:28px;border-radius:14px;background:var(--rule);position:relative;flex:none;transition:background .2s}
+#cfgsheet .switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s}
+#cfgsheet .switch.on{background:var(--signal)}
+#cfgsheet .switch.on::after{transform:translateX(18px)}
+#cfgsheet .sm{font-size:calc(13px * var(--ts));padding:6px 11px;border-radius:8px;border:1px solid var(--rule);background:var(--sheet);white-space:nowrap;flex:none}
+#cfgsheet .danger{color:var(--danger)}
+#cfgsheet .danger.armed{background:var(--danger);color:#fff;border-color:var(--danger)}
+#cfgsheet .seg{display:flex;flex:none;gap:0;padding:0;border:1px solid var(--rule);border-radius:9px;overflow:hidden;background:var(--sheet)}
+#cfgsheet .seg button{font-size:calc(12.5px * var(--ts));padding:6px 10px;color:var(--ink-2);white-space:nowrap}
+#cfgsheet .seg button.on{background:var(--ink);color:var(--paper);font-weight:600}
+#cfgsheet .seg.wide button{flex:1;text-align:center;padding:9px 4px;font-size:calc(13.5px * var(--ts))}
+#cfgsheet .lk-row{margin:10px 0 14px}
+#cfgsheet .lk-l{display:block;font-size:calc(13px * var(--ts));font-weight:600;color:var(--ink-2);margin-bottom:6px}
+#cfgsheet .sws{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;padding:3px 3px 2px}
+#cfgsheet .sws::-webkit-scrollbar{display:none}
+#cfgsheet .sw{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none}
+#cfgsheet .sw .prev{position:relative;width:50px;height:50px;border-radius:13px;display:grid;place-items:center;border:1px solid rgba(127,127,127,.35);font:700 18px/1 var(--display)}
+#cfgsheet .sw .prev i{position:absolute;right:6px;bottom:6px;width:9px;height:9px;border-radius:5px}
+#cfgsheet .sw.on .prev{outline:2.5px solid var(--signal);outline-offset:2px}
+#cfgsheet .sw small{font-size:12px;color:var(--ink-2)}
+#cfgsheet .sw.on small{color:var(--ink);font-weight:600}
+#cfgsheet .cfg{padding:12px 0;border-bottom:1px solid var(--rule)}
+#cfgsheet .cfg.ch .cfg-h b::after{content:"";display:inline-block;width:7px;height:7px;border-radius:4px;background:var(--signal);margin-left:7px;vertical-align:2px}
+#cfgsheet .cfg-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+#cfgsheet .cfg-h b{font-weight:600}
+#cfgsheet .cfg small{display:block;font-size:calc(13px * var(--ts));margin-top:2px}
+#cfgsheet .stepper{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+#cfgsheet .stepper button{width:38px;height:36px;border-radius:9px;border:1px solid var(--rule);background:var(--sheet);font-size:20px;font-weight:600;text-align:center}
+#cfgsheet .stepper button[disabled]{opacity:.35}
+#cfgsheet .stepper input{width:86px;text-align:center;font:600 16px var(--sans);padding:7px 6px;border-radius:9px;border:1px solid var(--rule);background:var(--paper);color:var(--ink)}
+#cfgsheet .stepper .unit{font-size:calc(14px * var(--ts));color:var(--ink-2);min-width:2.5em}
+#cfgsheet .stepper .range{flex-basis:100%;font-size:calc(12px * var(--ts));color:var(--muted)}
+#cfgsheet .cfgin.wide,#cfgsheet .cfgsel{display:block;width:100%;margin-top:8px;font:16px/1.45 var(--sans);padding:9px 11px;border-radius:9px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);-webkit-appearance:none;appearance:none}
+#cfgsheet textarea.cfgsel{resize:none}
+#cfgsheet .cfgin:focus,#cfgsheet .cfgsel:focus{outline:2px solid var(--signal);outline-offset:-1px}
+#cfgsheet .cfg-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:18px}
+#cfgsheet .note{font-size:12.5px;color:var(--muted)}
+#cfgsheet .srow.bp{width:100%;text-align:left}
+#cfgsheet .chev{flex:none;color:var(--muted);font-size:calc(20px * var(--ts));line-height:1}
+#cfgsheet input,#cfgsheet textarea{-webkit-user-select:text;user-select:text}
+#cfgsheet .srow.act{width:100%}
 `;
 
 // Runs inside the WebView. Kept as a real function so it needs no escaping.
@@ -1152,7 +1358,7 @@ function pageMain() {
     const c = color(i.subject);
     const n = i.due ? dayDiff(D.today, i.due) : 0;
     const late = !i.done && n < 0;
-    return `<div class="row">
+    return `<div class="row" data-toggle>
       <span class="bar" style="background:${c}"></span>
       <div class="main">
         <div class="title">${h(i.subject)}</div>
@@ -1178,7 +1384,7 @@ function pageMain() {
   function feedRow(f) {
     const label = T.feed[f.kind] || T.feed.other;
     const tone = { grade: "mark", formative: "green", absent: "red", late: "red", praise: "green", remark: "red" }[f.kind] || "";
-    return `<div class="row">
+    return `<div class="row" data-toggle>
       <span class="bar" style="background:${color(f.subject)}"></span>
       <div class="main">
         <div><span class="pill ${tone}">${h(label)}</span>${f.value ? `<span class="pill grade mark">${h(f.value)}</span>` : ""}</div>
@@ -1487,7 +1693,157 @@ function pageMain() {
       render();
       if (q) ask(q);
     }
+    const st = document.getElementById("s-aistatus"), P = s.usage.p[s.provider];   // the AI settings row in Settings
+    if (st) st.textContent = s.hasKey ? `${AI_PN[s.provider]} — ${s.model[s.provider]}${P && P.calls ? ` — ${aiFmtN(P.in + P.out)} tokens` : ""}` : CT.aiNone;
   };
+
+  // ── Settings (app-blueprints · settings): every change applies at once and is saved; Done closes ──
+  const CT_ALL = {
+    en: { title: "Settings", done: "Done", hint: "Changes apply right away and are kept on this iPhone.", appearance: "Appearance", colours: "Colours", layout: "Layout", textSize: "Text size", font: "Headline font",
+      themes: { auto: "Auto", ink: "Ink", sepia: "Sepia", mint: "Mint", contrast: "Contrast", slate: "Slate", night: "Night" },
+      layouts: ["Comfortable", "Compact", "Tiny"], sizes: ["Small", "Default", "Large", "Larger"], fonts: ["Sans serif", "Serif"],
+      general: "General", language: "Language", languageHelp: "The app redraws in this language when you close Settings", grades: "Grades", scale: (n) => `Grade scale for ${n}`, scaleHelp: "Averages, bars and Ask use it", other: "Other…",
+      ask: "Ask", aiRow: "Keys, models and token usage", aiNone: "Add a Claude or OpenAI key for ✨ Ask", aiBtn: "AI settings",
+      account: "Account", switchChild: "Switch child", web: "Open TAMO website", login: "Change sign-in details", signout: "Sign out and forget password", signoutHelp: "Keeps these settings", confirm: "Confirm",
+      updates: "Updates", offer: "Offer new versions", offerHelp: (v) => `You have Dienynas+ ${v}. “Later” waits two days.`, check: "Check for updates now", checkBtn: "Check", checking: "Checking…",
+      reset: "Reset", original: "original", changed: (n) => `${n} setting${n === 1 ? "" : "s"} changed`, none: "All settings are at their original values", resetAll: "Reset all", confirmReset: "Confirm reset",
+      builtWith: "Built with", builtHint: (a) => `${a} is built from shared blueprints that the other apps use too. Tap one to read how that part works.`, bp: (v, a, s) => `Blueprint ${v} · since ${a} ${s}`, all: "All blueprints",
+      dec: "Decrease", inc: "Increase" },
+    lt: { title: "Nustatymai", done: "Baigti", hint: "Pakeitimai įsigalioja iš karto ir saugomi šiame iPhone.", appearance: "Išvaizda", colours: "Spalvos", layout: "Išdėstymas", textSize: "Teksto dydis", font: "Antraščių šriftas",
+      themes: { auto: "Automatiškai", ink: "Rašalas", sepia: "Sepija", mint: "Mėtinė", contrast: "Kontrastas", slate: "Skalūnas", night: "Naktis" },
+      layouts: ["Erdvus", "Glaustas", "Mažytis"], sizes: ["Mažas", "Įprastas", "Didelis", "Didesnis"], fonts: ["Be serifų", "Su serifais"],
+      general: "Bendra", language: "Kalba", languageHelp: "Uždarius nustatymus programa persipieš šia kalba", grades: "Pažymiai", scale: (n) => `Vertinimo skalė: ${n}`, scaleHelp: "Ja remiasi vidurkiai, juostos ir „Klausk“", other: "Kita…",
+      ask: "Klausk", aiRow: "Raktai, modeliai ir žetonų naudojimas", aiNone: "Pridėkite Claude arba OpenAI raktą „Klausk“ funkcijai", aiBtn: "AI nustatymai",
+      account: "Paskyra", switchChild: "Keisti vaiką", web: "Atidaryti TAMO svetainę", login: "Keisti prisijungimo duomenis", signout: "Atsijungti ir pamiršti slaptažodį", signoutHelp: "Šie nustatymai išlieka", confirm: "Patvirtinti",
+      updates: "Atnaujinimai", offer: "Siūlyti naujas versijas", offerHelp: (v) => `Jūsų versija: Dienynas+ ${v}. „Vėliau“ palaukia dvi dienas.`, check: "Tikrinti atnaujinimus dabar", checkBtn: "Tikrinti", checking: "Tikrinama…",
+      reset: "Atstatyti", original: "pradinė", changed: (n) => `Pakeista nustatymų: ${n}`, none: "Visi nustatymai pradiniai", resetAll: "Atstatyti viską", confirmReset: "Patvirtinti",
+      builtWith: "Sukurta pagal", builtHint: (a) => `${a} sukurta pagal bendrus šablonus, kuriuos naudoja ir kitos programos. Paspauskite, kad perskaitytumėte, kaip veikia ta dalis.`, bp: (v, a, s) => `Šablonas ${v} · nuo ${a} ${s}`, all: "Visi šablonai",
+      dec: "Mažinti", inc: "Didinti" },
+  };
+  const CT = CT_ALL[D.lang] || CT_ALL.en;
+  const LOOK = Object.assign({ theme: "auto", density: "comfortable", font: "sans", textSize: 1 }, D.look || {});
+  let SET = null, cfgOpen = false, cfgArmed = false, outArmed = false;
+  const darkMQ = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : { matches: false };
+  function applyLook() {
+    const root = document.documentElement;
+    root.dataset.theme = LOOK.theme === "auto" ? (darkMQ.matches ? "night" : "ink") : LOOK.theme;
+    root.dataset.font = LOOK.font;
+    root.style.setProperty("--ts", LOOK.textSize);
+    document.body.classList.remove("d-comfortable", "d-compact", "d-tiny");
+    document.body.classList.add("d-" + LOOK.density);
+  }
+  const onDark = () => { if (LOOK.theme === "auto") applyLook(); };
+  if (darkMQ.addEventListener) darkMQ.addEventListener("change", onDark); else if (darkMQ.addListener) darkMQ.addListener(onDark);
+  const cfgSheet = () => {
+    let el = document.getElementById("cfgsheet");
+    if (!el) {
+      el = document.createElement("div"); el.id = "cfgsheet"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", CT.title);
+      document.body.appendChild(el);
+      el.addEventListener("click", cfgClick);
+      el.addEventListener("change", cfgChange);
+    }
+    return el;
+  };
+  const cfgItem = (k) => { for (const sec of SET.cfgSchema) for (const d of sec.items) if (d.k === k) return d; return null; };
+  const cfgChanged = (k) => { const d = cfgItem(k); return !!d && JSON.stringify(SET.cfg[k]) !== JSON.stringify(d.def); };
+  const fmtCfg = (d, v) => (d.step && d.step < 1 ? Number(v).toFixed(String(d.step).split(".")[1].length) : String(v));
+  const segRow = (k, opts) => `<div class="seg wide">${opts.map(([v, l]) => `<button class="${String(LOOK[k]) === String(v) ? "on" : ""}" data-act="look" data-k="${k}" data-v="${v}">${h(l)}</button>`).join("")}</div>`;
+  function lookHTML() {
+    const P = SET.palettes, themes = ["auto"].concat(Object.keys(P));
+    return `<div class="lk-row"><span class="lk-l">${h(CT.colours)}</span><div class="sws">${themes.map((k) => {
+        const st = k === "auto" ? `background:linear-gradient(135deg,${P.ink.paper} 50%,${P.night.sheet} 50%);color:${P.night.signal}` : `background:${P[k].paper};color:${P[k].ink}`;
+        return `<button class="sw ${LOOK.theme === k ? "on" : ""}" data-act="look" data-k="theme" data-v="${k}" aria-label="${h(CT.themes[k] || k)}"><span class="prev" style="${st}">Aa<i style="background:${(P[k] || P.night).signal}"></i></span><small>${h(CT.themes[k] || k)}</small></button>`;
+      }).join("")}</div></div>
+      <div class="lk-row"><span class="lk-l">${h(CT.layout)}</span>${segRow("density", [["comfortable", CT.layouts[0]], ["compact", CT.layouts[1]], ["tiny", CT.layouts[2]]])}</div>
+      <div class="lk-row"><span class="lk-l">${h(CT.textSize)}</span>${segRow("textSize", [[0.92, CT.sizes[0]], [1, CT.sizes[1]], [1.12, CT.sizes[2]], [1.25, CT.sizes[3]]])}</div>
+      <div class="lk-row"><span class="lk-l">${h(CT.font)}</span>${segRow("font", [["sans", CT.fonts[0]], ["serif", CT.fonts[1]]])}</div>`;
+  }
+  const swRow = (k, label, help) => `<div class="srow"><div class="grow"><b>${h(label)}</b><small>${h(help)}</small></div><button class="switch ${SET.settings[k] ? "on" : ""}" data-act="toggle" data-v="${k}" aria-label="${h(label)}"></button></div>`;
+  const actRow = (v, label, help, danger) => `<button class="srow act" data-act="acct" data-v="${v}"><div class="grow"><b class="${danger ? "danger" : ""}">${h(danger && outArmed ? CT.confirm : label)}</b>${help ? `<small>${h(help)}</small>` : ""}</div><span class="chev" aria-hidden="true">›</span></button>`;
+  function fieldHTML(d) {
+    const v = SET.cfg[d.k], ch = cfgChanged(d.k);
+    const reset = ch ? `<button class="link small" data-act="cfgreset" data-k="${d.k}">${h(CT.reset)}</button>` : "";
+    const head = `<div class="cfg-h"><b>${h(d.label)}</b>${reset}</div>${d.help ? `<small class="muted">${h(d.help)}</small>` : ""}`;
+    return `<div class="cfg ${ch ? "ch" : ""}">${head}
+      <div class="stepper"><button data-act="cfgstep" data-k="${d.k}" data-v="-1" aria-label="${h(CT.dec)}" ${v <= d.min ? "disabled" : ""}>−</button>
+      <input class="cfgin" data-k="${d.k}" value="${fmtCfg(d, v)}" inputmode="decimal" aria-label="${h(d.label)}">
+      <button data-act="cfgstep" data-k="${d.k}" data-v="1" aria-label="${h(CT.inc)}" ${v >= d.max ? "disabled" : ""}>+</button>
+      <span class="unit">${h(d.unit || "")}</span><span class="range">${fmtCfg(d, d.min)}–${fmtCfg(d, d.max)}${ch ? ` — ${h(CT.original)} ${fmtCfg(d, d.def)}` : ""}</span></div></div>`;
+  }
+  const bpLink = (b) => `${SET.blueprintsRepo}/blob/${b.id}-v${b.version}/blueprints/${b.id}.md`;
+  function builtWithHTML() {
+    return `<h3 class="sec">${h(CT.builtWith)}</h3><p class="hint">${h(CT.builtHint(SET.appName))}</p>
+      ${SET.blueprints.map((b) => `<button class="srow bp" data-act="openurl" data-v="${h(bpLink(b))}"><div class="grow"><b>${h(b.name)}</b><small class="muted">${h(CT.bp(b.version, SET.appName, b.since))}</small></div><span class="chev" aria-hidden="true">›</span></button>`).join("")}
+      <button class="srow bp" data-act="openurl" data-v="${h(SET.blueprintsRepo)}"><div class="grow"><b>${h(CT.all)}</b><small class="muted">${h(SET.blueprintsRepo.replace("https://", ""))}</small></div><span class="chev" aria-hidden="true">›</span></button>`;
+  }
+  function renderCfg() {
+    const el = cfgSheet(), keep = el.scrollTop;
+    el.classList.toggle("open", cfgOpen);
+    document.body.style.overflow = cfgOpen ? "hidden" : "";
+    if (!cfgOpen || !SET) return;
+    const changed = Object.keys(SET.cfg).filter(cfgChanged).length, s = SET.settings, ch = SET.child;
+    const scaleOpts = [10, 7, 5].concat(ch && ![10, 7, 5].includes(ch.scale) ? [ch.scale] : []);
+    el.innerHTML = `<div class="sh-head"><h2>${h(CT.title)}</h2><button class="link" data-act="cfgclose">${h(CT.done)}</button></div><div class="sh-body">
+      <p class="hint">${h(CT.hint)}</p>
+      <h3 class="sec">${h(CT.appearance)}</h3>${lookHTML()}
+      <h3 class="sec">${h(CT.general)}</h3>
+      <div class="lk-row"><span class="lk-l">${h(CT.language)}</span>${`<div class="seg wide">${[["en", "English"], ["lt", "Lietuvių"]].map(([v, l]) => `<button class="${s.lang === v ? "on" : ""}" data-act="lang" data-v="${v}">${l}</button>`).join("")}</div>`}<small class="muted">${h(CT.languageHelp)}</small></div>
+      ${ch ? `<h3 class="sec">${h(CT.grades)}</h3>
+      <div class="cfg"><div class="cfg-h"><b>${h(CT.scale(ch.name))}</b></div><small class="muted">${h(CT.scaleHelp)}</small>
+        <select class="cfgsel" data-k="scale">${scaleOpts.map((n) => `<option value="${n}"${n === ch.scale ? " selected" : ""}>1–${n}</option>`).join("")}<option value="other">${h(CT.other)}</option></select></div>` : ""}
+      <h3 class="sec">${h(CT.ask)}</h3>
+      <div class="srow"><div class="grow"><b>${h(CT.aiRow)}</b><small id="s-aistatus">${h(SET.hasKey ? SET.aiStatus : CT.aiNone)}</small></div><button class="sm" data-act="ai-open">${h(CT.aiBtn)}</button></div>
+      <h3 class="sec">${h(CT.account)}</h3>
+      ${SET.canSwitch ? actRow("switchChild", CT.switchChild) : ""}${actRow("web", CT.web)}${actRow("login", CT.login)}${actRow("signout", CT.signout, CT.signoutHelp, true)}
+      <h3 class="sec">${h(CT.updates)}</h3>
+      ${swRow("checkUpdates", CT.offer, CT.offerHelp(SET.version))}
+      <div class="srow"><div class="grow"><b>${h(CT.check)}</b><small id="updmsg" class="muted" aria-live="polite"></small></div><button class="sm" data-act="updcheck">${h(CT.checkBtn)}</button></div>
+      ${SET.cfgSchema.map((sec) => `<h3 class="sec">${h(sec.title)}</h3>${sec.items.map(fieldHTML).join("")}`).join("")}
+      <div class="cfg-foot"><span class="note">${h(changed ? CT.changed(changed) : CT.none)}</span>
+        ${changed ? `<button class="sm danger ${cfgArmed ? "armed" : ""}" data-act="cfgall">${h(cfgArmed ? CT.confirmReset : CT.resetAll)}</button>` : ""}</div>
+      ${builtWithHTML()}</div>`;
+    el.scrollTop = keep;   // re-renders must not jump back to the top
+  }
+  const sendCfg = (action, params) => call(action, params || {}, 600000).then((st) => { if (st && st.cfgSchema) SET = st; renderCfg(); }, (e) => { (window.__aiToast || alert)(e.message); renderCfg(); });
+  function openSettings() {
+    if (cfgOpen) return;
+    call("settings-get", {}, 30000).then((st) => { SET = st; cfgOpen = true; renderCfg(); cfgSheet().scrollTop = 0; }, (e) => (window.__aiToast || alert)(e.message));
+  }
+  function closeSettings() { cfgOpen = false; cfgArmed = false; outArmed = false; renderCfg(); call("settings-done", {}, 30000).catch(() => {}); }
+  function cfgClick(e) {
+    e.stopPropagation();   // the sheet's taps never reach the app's own click handler
+    if (e.target.closest("select, option, input, textarea")) return;
+    const t = e.target.closest("[data-act]"); if (!t || t.disabled) return;
+    const act = t.dataset.act, v = t.dataset.v, k = t.dataset.k;
+    if (act === "cfgclose") return closeSettings();
+    if (act === "look") { const val = k === "textSize" ? +v : v; LOOK[k] = val; applyLook(); renderCfg(); return sendCfg("set", { k, v: val }); }
+    if (act === "lang") { SET.settings.lang = v; renderCfg(); return sendCfg("set", { k: "lang", v }); }
+    if (act === "toggle") { SET.settings[v] = !SET.settings[v]; renderCfg(); return sendCfg("set", { k: v, v: SET.settings[v] }); }
+    if (act === "cfgreset") return sendCfg("cfg", { k, reset: 1 });
+    if (act === "cfgstep") { const d = cfgItem(k), step = d.step || 1; SET.cfg[k] = Number(Math.min(d.max, Math.max(d.min, Number(SET.cfg[k]) + step * +v)).toFixed(2)); renderCfg(); return sendCfg("cfg", { k, v: SET.cfg[k] }); }
+    if (act === "cfgall") {
+      if (cfgArmed) { cfgArmed = false; return sendCfg("cfg", { k: "*" }); }
+      cfgArmed = true; renderCfg(); setTimeout(() => { if (cfgArmed) { cfgArmed = false; renderCfg(); } }, 3500); return;
+    }
+    if (act === "ai-open") return window.__aiOpen();
+    if (act === "openurl") return call("openurl", { v }).catch(() => {});
+    if (act === "updcheck") {
+      const um = document.getElementById("updmsg"); t.disabled = true; if (um) um.textContent = CT.checking;
+      return call("update-check", {}, 30000).then((r) => { t.disabled = false; if (um) um.textContent = (r && r.msg) || ""; if (r && r.available) closeSettings(); }, (er) => { t.disabled = false; if (um) um.textContent = er.message; });
+    }
+    if (act === "acct") {
+      if (v === "signout" && !outArmed) { outArmed = true; renderCfg(); setTimeout(() => { if (outArmed) { outArmed = false; renderCfg(); } }, 3500); return; }
+      outArmed = false; cfgOpen = false; renderCfg();
+      return call("acct", { v }).catch(() => {});
+    }
+  }
+  function cfgChange(e) {
+    e.stopPropagation();
+    const el = e.target;
+    if (el.classList.contains("cfgin")) return sendCfg("cfg", { k: el.dataset.k, v: el.value });
+    if (el.dataset.k === "scale") return sendCfg(el.value === "other" ? "scale-other" : "scale-set", { v: el.value });
+  }
+  applyLook();
 
   // ── ask (chat) ──
   function md(text) {
@@ -1670,7 +2026,7 @@ function pageMain() {
       <div class="tools">
         ${D.hasAiKey ? `<button class="icon-btn ${S.tab === 5 ? "on" : ""}" data-tab="5" aria-label="ask"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>` : ""}
         <button class="icon-btn" id="refresh" aria-label="refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></button>
-        <button class="icon-btn" id="settings" aria-label="settings"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
+        <button class="icon-btn" id="settings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
       </div></header>
       <h1 class="date">${h(S.tab === 0 ? longDate(D.today) : S.tab === 5 ? T.askTitle : T.tabs[S.tab])}</h1>`;
     const banners = [];
@@ -1785,7 +2141,7 @@ function pageMain() {
       el.classList.add("spin");
       return call("refresh").catch(() => el.classList.remove("spin"));
     }
-    if (el.id === "settings") return call("settings").catch(() => {});
+    if (el.id === "settings") return openSettings();
   });
 
   document.addEventListener("keydown", (e) => {
@@ -1810,10 +2166,11 @@ function pageMain() {
 }
 
 function buildHTML(data) {
-  const payload = { ...data, lang: LANG(), version: VERSION };
-  return `<!doctype html><html><head><meta charset="utf-8">
+  const payload = { ...data, lang: LANG(), version: VERSION, look: lookState() };
+  const look = lookState();
+  return `<!doctype html><html data-theme="${look.shown}" data-font="${look.font}" style="--ts:${look.textSize}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<style>${CSS}</style>${NO_ZOOM}</head><body>
+<style>${CSS}</style>${NO_ZOOM}</head><body class="d-${look.density}">
 <div id="app"></div><div class="scrim"></div><div class="sheet" id="sheet"></div>
 <script>window.DATA=${safeJSON(payload)};(${pageMain.toString()})();</script>
 </body></html>`;
@@ -2036,14 +2393,6 @@ const aiFmtN = n => n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? Math.roun
 
 // ───────────────────────────── ✨ Ask: chat over everything TAMO has (through aiCall) ─────────────────────────────
 
-const ASK = {
-  CONTEXT_MAX_AGE_H: 4, // older school data is re-pulled before the next question; the conversation is kept
-  WEEKS_BACK: 2, // lesson weeks pulled around this week
-  WEEKS_AHEAD: 2,
-  MESSAGE_DAYS: 60, // message headers this far back
-  BODY_DAYS: 45, // already-read messages this recent get their text pulled (unread ones stay unread)
-  MAX_BODIES: 30,
-};
 
 const WEEKDAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const weekdayOf = (d) => WEEKDAYS_EN[(new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7];
@@ -2082,17 +2431,14 @@ function dedupe(items, keyOf) {
 
 // ── grade scale, chosen per child (most schools grade 1–10, some 1–7) ──
 function gradeScales() {
-  try {
-    return Keychain.contains(K.scale) ? JSON.parse(Keychain.get(K.scale)) : {};
-  } catch (_) {
-    return {};
-  }
+  return settings.gradeScales || {};
 }
 const gradeMaxFor = (roleKey) => Number(gradeScales()[roleKey]) || 10;
 function setGradeMax(roleKey, max) {
   const all = gradeScales();
   all[roleKey] = max;
-  Keychain.set(K.scale, JSON.stringify(all));
+  settings.gradeScales = all;
+  saveSettings();
 }
 async function pickGradeScale(roleKey, childName) {
   const cur = gradeMaxFor(roleKey);
@@ -2172,7 +2518,7 @@ async function gatherAll(api, base, progress = () => {}) {
 
   progress("schedule");
   const mondays = [];
-  for (let i = -ASK.WEEKS_BACK; i <= ASK.WEEKS_AHEAD; i++) mondays.push(addDays(monday, i * 7));
+  for (let i = -cfg("weeksBack"); i <= cfg("weeksAhead"); i++) mondays.push(addDays(monday, i * 7));
   const weekList = await mapLimit(mondays, 3, (m) => safe(`schedule ${m}`, fetchWeek(api, m)));
   const weeks = Object.fromEntries(mondays.map((m, i) => [m, weekList[i]]).filter(([, d]) => d));
 
@@ -2202,8 +2548,8 @@ async function gatherAll(api, base, progress = () => {}) {
   const feed = (await safe("notifications", api.modern("core/app/feeds").then((r) => mapFeed(requiredList(r, "result"))))) || (base && base.feed) || [];
 
   progress("messages");
-  const messages = (await safe("messages", fetchMessages(api, addDays(today, -ASK.MESSAGE_DAYS), 12))) || (base && base.messages) || [];
-  const readable = messages.filter((m) => !m.unread && m.date >= addDays(today, -ASK.BODY_DAYS)).slice(0, ASK.MAX_BODIES);
+  const messages = (await safe("messages", fetchMessages(api, addDays(today, -cfg("messageDays")), 12))) || (base && base.messages) || [];
+  const readable = messages.filter((m) => !m.unread && m.date >= addDays(today, -cfg("bodyDays"))).slice(0, cfg("maxBodies"));
   const bodies = {};
   await mapLimit(readable, 4, async (m) => {
     try {
@@ -2520,7 +2866,7 @@ function cmpVer(a, b) {
 }
 
 async function checkForUpdate() {
-  if (!CONFIG.CHECK_UPDATES || updateSnoozed()) return null;
+  if (!settings.checkUpdates || updateSnoozed()) return null;
   try {
     const req = new Request(`${REPO_RAW}releases.json?t=${Date.now()}`);
     req.timeoutInterval = 10;
@@ -2597,6 +2943,7 @@ class App {
     this.msgBodies = {}; // bodies of messages opened in this session, for Ask
     this.pendingUpdate = null; // newer version found on GitHub, offered until answered
     this.updateChecked = false;
+    this.settingsEffect = ""; // what closing Settings must do: "" or "render"
   }
 
   offerUpdate() {
@@ -2636,7 +2983,7 @@ class App {
     const data = this.data || readCache();
     if (!data) throw new Error(t("aiNoData"));
     const chat = this.chatFor(data);
-    const fresh = chat.pack && Date.now() - chat.pack.builtAt < ASK.CONTEXT_MAX_AGE_H * 3600000 && chat.pack.today === todayV();
+    const fresh = chat.pack && Date.now() - chat.pack.builtAt < cfg("askMaxAgeH") * 3600000 && chat.pack.today === todayV();
     if (!force && fresh) return chat;
     chat.pack = await gatherAll(this.api, data, (stage) => this.progress(stage));
     saveChat(chat);
@@ -2802,9 +3149,54 @@ class App {
             this.api = new Tamo(true);
           }
           return this.reload();
-        case "settings":
+        // Settings (app-blueprints · settings): each change is applied and saved at once; the reply is the fresh state.
+        case "settings-get":
+        case "set":
+        case "cfg":
+        case "scale-set":
+        case "scale-other": {
+          const cur = this.data || readCache();
+          if (action === "set") {
+            const effect = setSetting(params.k, params.v);
+            if (effect === null) throw new Error(LANG() === "lt" ? "Šio nustatymo čia pakeisti negalima." : "That setting can’t be changed here.");
+            if (effect) this.settingsEffect = effect;
+            saveSettings();
+          } else if (action === "cfg") {
+            if (params.k === "*") settings.cfg = {};
+            else setCfg(params.k, params.reset ? null : params.v);
+            saveSettings();
+          } else if (action === "scale-set" && cur) {
+            const max = parseInt(params.v, 10);
+            if (max >= 2 && max <= 100) { setGradeMax(cur.child.key, max); this.settingsEffect = "render"; }
+          } else if (action === "scale-other" && cur) {
+            if (await pickGradeScale(cur.child.key, cur.child.title)) this.settingsEffect = "render";
+          }
+          const session = this.api.session || (Keychain.contains(K.session) ? JSON.parse(Keychain.get(K.session)) : null);
+          return this.reply(q.id, true, settingsState(cur && cur.child, session && (session.roles || []).length > 1));
+        }
+        case "settings-done": {   // the sheet closed: redraw once if the language or a grade scale changed
+          const effect = this.settingsEffect;
+          this.settingsEffect = "";
           await this.reply(q.id, true, {});
-          return this.settings();
+          const cur = this.data || readCache();
+          if (effect && cur) await this.wv.loadHTML(this.page(cur, { warnings: [] }));
+          return;
+        }
+        case "update-check": {   // Settings › Check for updates now: clears "Later" and checks at once
+          if (Keychain.contains(KC_UPDATE_SNOOZE)) Keychain.remove(KC_UPDATE_SNOOZE);
+          const was = settings.checkUpdates; settings.checkUpdates = true;
+          const u = await checkForUpdate(); settings.checkUpdates = was;
+          const lt = LANG() === "lt";
+          await this.reply(q.id, true, { available: !!u, msg: u ? (lt ? `Yra versija ${u.latest}` : `Version ${u.latest} is available`) : (lt ? `Naudojate naujausią versiją (${VERSION})` : `You're on the latest version (${VERSION})`) });
+          if (u) { this.pendingUpdate = u; this.offerUpdate(); }
+          return;
+        }
+        case "openurl":   // Built with: only the blueprints repository opens from here
+          if (params.v === BLUEPRINTS_REPO || String(params.v).startsWith(BLUEPRINTS_REPO + "/")) await Safari.openInApp(params.v, false);
+          return this.reply(q.id, true, {});
+        case "acct":
+          await this.reply(q.id, true, {});
+          return this.account(params.v);
         default:
           throw new Error(`unknown action ${action}`);
       }
@@ -2826,25 +3218,8 @@ class App {
     await Safari.openInApp(url, false);
   }
 
-  async settings() {
-    const a = new Alert();
-    a.title = t("settings");
-    const actions = [];
-    const session = this.api.session || (Keychain.contains(K.session) ? JSON.parse(Keychain.get(K.session)) : null);
-    if (session && (session.roles || []).length > 1) actions.push(["switchChild", t("switchChild")]);
-    const cur = this.data || readCache();
-    if (cur) actions.push(["scale", `${t("scaleMenu")}: 1–${gradeMaxFor(cur.child.key)}`]);
-    actions.push(["lang", t("language")], ["ai", aiKey() ? `${t("aiSettings")}: ${PROVIDERS[aiSettings.aiProvider]}` : t("aiSettings")]);
-    actions.push(["web", t("openWeb")], ["login", t("changeLogin")], ["signout", t("signOut")]);
-    actions.forEach(([, l]) => a.addAction(l));
-    a.addCancelAction(t("cancel"));
-    const i = await a.presentSheet();
-    if (i < 0) return;
-    const act = actions[i][0];
-    if (act === "scale") {
-      if (await pickGradeScale(cur.child.key, cur.child.title)) return this.wv.loadHTML(this.page(cur, { warnings: [] }));
-      return;
-    }
+  // Account actions from Settings (they used to be the ••• menu).
+  async account(act) {
     if (act === "switchChild") {
       if (Keychain.contains(K.role)) Keychain.remove(K.role);
       forgetSession();
@@ -2852,13 +3227,6 @@ class App {
       this.api = new Tamo(true);
       return this.reload();
     }
-    if (act === "lang") {
-      Keychain.set(K.lang, LANG() === "lt" ? "en" : "lt");
-      const cached = readCache();
-      if (cached) return this.wv.loadHTML(this.page(cached, { warnings: [] }));
-      return this.reload();
-    }
-    if (act === "ai") return this.wv.evaluateJavaScript("window.__aiOpen && window.__aiOpen()", false).catch(() => {});
     if (act === "web") return Safari.open("https://dienynas.tamo.lt/");
     if (act === "login") {
       if (await askCredentials()) {
@@ -2870,7 +3238,7 @@ class App {
       }
       return;
     }
-    if (act === "signout") {
+    if (act === "signout") {   // keeps settings.json (appearance, language, grade scales), as 1.5 kept them
       [K.user, K.pass, K.role, K.session].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
       Object.keys(PROVIDERS).forEach(removeKey);
       deleteAllChats();
@@ -2890,18 +3258,20 @@ class App {
 
 async function runWidget() {
   let data = readCache();
-  if (!data || Date.now() - data.at > WIDGET_CACHE_MIN * 60000) {
+  if (!data || Date.now() - data.at > cfg("widgetCacheMin") * 60000) {
     try {
       data = await loadAll(new Tamo(false));
       saveCache(data);
     } catch (_) {}
   }
   const w = new ListWidget();
-  const ink = Color.dynamic(new Color("#15203A"), new Color("#E8ECF4"));
-  const muted = Color.dynamic(new Color("#5F6A84"), new Color("#9AA4BA"));
-  w.backgroundColor = Color.dynamic(new Color("#EEF1F6"), new Color("#0C111C"));
+  // The palette chosen in Settings; Auto follows the system with the Ink and Night palettes.
+  const pal = (k) => settings.theme === "auto" ? Color.dynamic(new Color(PALETTES.ink[k]), new Color(PALETTES.night[k])) : new Color(PALETTES[settings.theme][k]);
+  const ink = pal("ink");
+  const muted = pal("muted");
+  w.backgroundColor = pal("paper");
   w.url = URLScheme.forRunningScript();
-  w.refreshAfterDate = new Date(Date.now() + 20 * 60000);
+  w.refreshAfterDate = new Date(Date.now() + cfg("widgetRefreshMin") * 60000);
   const lt = LANG() === "lt";
   const line = (text, size, weight, c = ink) => {
     const x = w.addText(text);
@@ -2949,6 +3319,7 @@ async function runWidget() {
 // ───────────────────────────── entry ─────────────────────────────
 
 async function main() {
+  await loadSettings();   // before every branch: app, widget and the Shortcuts check use the saved choices
   aiMigrate(["dienynasplus.openai-key"]);   // 1.4.x kept one OpenAI key under another name
   if (config.runsInWidget) return runWidget();
   if (isCheckRun()) return runCheck();
