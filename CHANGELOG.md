@@ -2,6 +2,24 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.6.0 (2026-10-28): Make it yours
+
+- 🎨 **Colours and layout**: Six colour palettes or Auto, plus Comfortable, Compact or a one-line Tiny layout.
+- 🔠 **Text size and font**: Pick Small to Larger text and a rounded or serif font for headings.
+- 🎛 **All settings in one place**: Language, grade scale, Ask, account and updates, with Reset for every number.
+
+**Changes**
+
+- New Settings sheet (sliders icon) replaces the ••• menu: Appearance, General, Grades, Ask, Account, Updates, tunables and Built with; changes apply at once
+- Appearance shared with the other apps: Auto plus six palettes (TAMO blue in all), Comfortable, Compact or Tiny layout, four text sizes, rounded or serif headings
+- Tiny layout: one line per lesson, homework item and message; tap an item to see all of it
+- Tunables with ranges and Reset: what Ask reads (weeks, messages, refresh age), TAMO time limit, widget refresh and cache
+- The Settings sheet follows the app language (Lithuanian or English)
+- Language and grade scales move from the Keychain to settings.json in iCloud Drive › Scriptable › DienynasPlus; your choices move over automatically
+- Check for updates now, in Settings › Updates
+- The widget uses the palette chosen in Settings
+- Built with: the blueprints this app follows, with links to read them
+
 ## 1.5.0 (2026-10-28): Ask with Claude or OpenAI
 
 - 🤖 **Claude or OpenAI**: ✨ Ask answers now work with either provider. Switch any time in AI settings.

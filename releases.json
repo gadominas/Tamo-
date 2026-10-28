@@ -4,6 +4,52 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.6.0",
+      "date": "2026-10-28",
+      "title": "Make it yours",
+      "highlights": [
+        {
+          "icon": "🎨",
+          "title": "Colours and layout",
+          "text": "Six colour palettes or Auto, plus Comfortable, Compact or a one-line Tiny layout.",
+          "lt": {
+            "title": "Spalvos ir išdėstymas",
+            "text": "Šešios spalvų paletės arba automatiškai, ir erdvus, glaustas ar vienos eilutės išdėstymas."
+          }
+        },
+        {
+          "icon": "🔠",
+          "title": "Text size and font",
+          "text": "Pick Small to Larger text and a rounded or serif font for headings.",
+          "lt": {
+            "title": "Teksto dydis ir šriftas",
+            "text": "Pasirinkite teksto dydį ir apvalų ar serifinį antraščių šriftą."
+          }
+        },
+        {
+          "icon": "🎛",
+          "title": "All settings in one place",
+          "text": "Language, grade scale, Ask, account and updates, with Reset for every number.",
+          "lt": {
+            "title": "Visi nustatymai vienoje vietoje",
+            "text": "Kalba, vertinimo skalė, „Klausk“, paskyra ir atnaujinimai, su atstatymu."
+          }
+        }
+      ],
+      "changes": [
+        "New Settings sheet (sliders icon) replaces the ••• menu: Appearance, General, Grades, Ask, Account, Updates, tunables and Built with; changes apply at once",
+        "Appearance shared with the other apps: Auto plus six palettes (TAMO blue in all), Comfortable, Compact or Tiny layout, four text sizes, rounded or serif headings",
+        "Tiny layout: one line per lesson, homework item and message; tap an item to see all of it",
+        "Tunables with ranges and Reset: what Ask reads (weeks, messages, refresh age), TAMO time limit, widget refresh and cache",
+        "The Settings sheet follows the app language (Lithuanian or English)",
+        "Language and grade scales move from the Keychain to settings.json in iCloud Drive › Scriptable › DienynasPlus; your choices move over automatically",
+        "Check for updates now, in Settings › Updates",
+        "The widget uses the palette chosen in Settings",
+        "Built with: the blueprints this app follows, with links to read them"
+      ],
+      "fixes": []
+    },
+    {
       "version": "1.5.0",
       "date": "2026-10-28",
       "title": "Ask with Claude or OpenAI",
