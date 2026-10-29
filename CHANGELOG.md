@@ -2,6 +2,20 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.7.0 (2026-10-29): Messages. Homework. Calm.
+
+- 📅 **A logo of its own**: A week calendar with a teal homework day and a blue plus on the selected day.
+- 🎬 **Launch screen**: The calendar draws itself and the tagline appears for about 2 seconds; tap to skip.
+- ✨ **Branded everywhere**: The logo sits in the header, on the loading and sign-in screens and in the README.
+
+**Changes**
+
+- New Dienynas+ logo (calendar plus): docs/logo.svg and a 1024 px app icon, docs/icon-1024.png
+- Launch screen shown for 2.4 s with a short animation and the tagline "Messages. Homework. Calm." ("Žinutės. Užduotys. Ramybė." in Lithuanian); tap to skip; still with Reduce Motion
+- Follows the shared launch-screen blueprint 1.0.0; Settings › Built with lists it
+- Logo mark in the header next to the child's name, the logo on the loading, sign-in and error screens, and at the top of the README
+- Fresh data waits for the launch screen to fade before it replaces the saved diary, so the launch screen is never cut short
+
 ## 1.6.0 (2026-10-28): Make it yours
 
 - 🎨 **Colours and layout**: Six colour palettes or Auto, plus Comfortable, Compact or a one-line Tiny layout.

@@ -4,6 +4,48 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.7.0",
+      "date": "2026-10-29",
+      "title": "Messages. Homework. Calm.",
+      "highlights": [
+        {
+          "icon": "📅",
+          "title": "A logo of its own",
+          "text": "A week calendar with a teal homework day and a blue plus on the selected day.",
+          "lt": {
+            "title": "Savas logotipas",
+            "text": "Savaitės kalendorius su žalsva namų darbų diena ir mėlynu pliusu pasirinktoje dienoje."
+          }
+        },
+        {
+          "icon": "🎬",
+          "title": "Launch screen",
+          "text": "The calendar draws itself and the tagline appears for about 2 seconds; tap to skip.",
+          "lt": {
+            "title": "Pradžios ekranas",
+            "text": "Kalendorius nusipiešia ir apie 2 sekundes rodomas šūkis; paspauskite, kad praleistumėte."
+          }
+        },
+        {
+          "icon": "✨",
+          "title": "Branded everywhere",
+          "text": "The logo sits in the header, on the loading and sign-in screens and in the README.",
+          "lt": {
+            "title": "Logotipas visur",
+            "text": "Logotipas yra antraštėje, įkėlimo ir prisijungimo ekranuose bei README."
+          }
+        }
+      ],
+      "changes": [
+        "New Dienynas+ logo (calendar plus): docs/logo.svg and a 1024 px app icon, docs/icon-1024.png",
+        "Launch screen shown for 2.4 s with a short animation and the tagline \"Messages. Homework. Calm.\" (\"Žinutės. Užduotys. Ramybė.\" in Lithuanian); tap to skip; still with Reduce Motion",
+        "Follows the shared launch-screen blueprint 1.0.0; Settings › Built with lists it",
+        "Logo mark in the header next to the child's name, the logo on the loading, sign-in and error screens, and at the top of the README",
+        "Fresh data waits for the launch screen to fade before it replaces the saved diary, so the launch screen is never cut short"
+      ],
+      "fixes": []
+    },
+    {
       "version": "1.6.0",
       "date": "2026-10-28",
       "title": "Make it yours",
