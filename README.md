@@ -39,7 +39,7 @@ Safari.open("scriptable:///run/Dienynas");
 
 | | How |
 | --- | --- |
-| Home-screen widget | Add a **Scriptable** widget, edit it, choose **Dienynas**. |
+| Home-screen widget | Add a **Scriptable** widget (small, medium, large or Lock Screen), edit it, choose **Dienynas**. With several children, type a child's name in **Parameter**. |
 | ✨ Ask | A [Claude](https://console.anthropic.com/settings/keys) or [OpenAI](https://platform.openai.com/api-keys) API key, added in **Settings › AI settings**. Without one the Ask tab stays hidden. |
 | 🔔 New-items alerts | Shortcuts automation running **Dienynas** with parameter `check`. [Setup](#-scheduled-checks-get-told-about-anything-new) |
 | 1–7 grading | Grades tab → **Scale 1–10** → pick 1–7. |
@@ -127,7 +127,7 @@ The assistant is told to answer only from that data, never to invent dates, grad
 
 It works with Claude or OpenAI, set up the same way as in the other apps (see [app-blueprints](https://github.com/gadominas/app-blueprints)). Open **Settings › AI settings** to add your own key, pick any model your key can use, test the connection and see how many tokens Ask has used per day and model. Keys are typed into a native iOS prompt and saved in the iOS Keychain. API usage is billed separately from a chat subscription. Because every question carries the school data and the whole conversation, a question costs roughly a cent or two.
 
-Dienynas+ follows four shared blueprints: in-app updates, settings, AI configuration and launch screen. **Settings › Built with** lists them with their versions; [docs/BLUEPRINTS.md](docs/BLUEPRINTS.md) adds the deviations.
+Dienynas+ follows five shared blueprints: in-app updates, settings, AI configuration, launch screen and widgets. **Settings › Built with** lists them with their versions; [docs/BLUEPRINTS.md](docs/BLUEPRINTS.md) adds the deviations.
 
 ### Also
 
@@ -142,7 +142,7 @@ Dienynas+ follows four shared blueprints: in-app updates, settings, AI configura
 - **Launch screen.** Dienynas+ opens on its logo for 2.4 seconds: the calendar draws itself, then "Messages. Homework. Calm." ("Žinutės. Užduotys. Ramybė." in Lithuanian). Tap to skip; with Reduce Motion it appears without movement. It is the shared [launch-screen](https://github.com/gadominas/app-blueprints/blob/main/blueprints/launch-screen.md) blueprint, so all the apps start the same way.
 - **Dark mode** follows the iPhone setting with Auto colours, or pick a palette in Settings › Appearance.
 - **Several children on one account:** the app asks whose diary to show and remembers the choice; switch any time from Settings › Account.
-- **Home-screen widget** with the current or next lesson, homework due tomorrow and today's messages. Tapping it opens the app.
+- **Home-screen widget** in the shared frame all the apps use: the Dienynas+ logo and the child's name, the current or next lesson and the one after it, homework due tomorrow (and late), today's messages (and unread) as counts, the rest of today's lessons and how many are left. It never shows grades or message text. With several children, put a child's name in the widget's **Parameter**. Data older than 12 hours (Settings › Widget) reads "⟳ Updated …" in amber. Tapping it opens the app.
 - **🔔 Scheduled checks** for new homework, grades, messages and teacher notes, shown as a popup alert or a notification (see below).
 - **Works offline.** The last loaded data is shown straight away and refreshed in the background. If TAMO can't be reached, the saved data stays on screen with a note saying when it's from.
 - Behaves like a native app: no pinch or double-tap zoom.
@@ -212,7 +212,7 @@ Everything is in one file. The data layer runs in Scriptable; the interface is a
 - **✨ Ask sends the school data to the AI provider in use** with each question: lessons, homework, classwork, grades, attendance, notices, the calendar, message headers and the text of already-read messages, plus the conversation so far. The child's name isn't sent. OpenAI chat requests aren't stored for later retrieval by default; Anthropic doesn't train on API data by default. If you don't add a key, nothing is ever sent to an AI provider.
 - Your Claude and OpenAI keys are stored only in the iOS Keychain and each is sent only to its own provider. The app's page only ever sees them masked.
 - The Ask conversation and the data gathered for it are saved in Scriptable's local documents folder, one file per child. **Clear memory** deletes that child's file.
-- The last loaded data is cached in Scriptable's local documents folder so the app and widget open instantly. **Sign out and forget password** in Settings › Account deletes the credentials, the AI keys, the session, the cache, all saved conversations and the record of what's already been shown.
+- The last loaded data is cached in Scriptable's local documents folder so the app opens instantly. The widget keeps its own small snapshot there (lesson times and subjects, homework due dates, message dates; no grades or message text). **Sign out and forget password** in Settings › Account deletes the credentials, the AI keys, the session, the cache, all saved conversations and the record of what's already been shown, and empties the widget's snapshot.
 - Dienynas+ is **read-only** with one exception, the same as the official app: **opening a message marks it as read** in TAMO.
 
 ## Limitations

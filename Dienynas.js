@@ -10,7 +10,8 @@
  * marks it as read in TAMO, exactly like the official app does.
  *
  * Credentials live in the iOS Keychain (Scriptable's Keychain API), never in this file.
- * Run as an app for the full UI; add it as a Scriptable widget for a glanceable "today" view.
+ * Run as an app for the full UI; add it as a Scriptable widget for a glanceable "today" view
+ * (the shared widget frame, app-blueprints · widgets).
  *
  * Unofficial: TAMO's terms of use do not cover third-party clients. Use with your own account only.
  *
@@ -27,7 +28,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -43,6 +44,7 @@ const BLUEPRINTS = [
   { id: 'settings', name: 'Settings', version: '1.0.0', since: '1.6.0' },
   { id: 'ai-configuration', name: 'AI configuration', version: '1.0.0', since: '1.5.0' },
   { id: 'launch-screen', name: 'Launch screen', version: '1.0.0', since: '1.7.0' },
+  { id: 'widgets', name: 'Widgets', version: '1.0.0', since: '1.8.0' },
 ];
 
 const K = {
@@ -135,6 +137,8 @@ const CONFIG = [
       lt: { label: "Prašyti iOS atnaujinti kas", help: "Tikslų laiką nusprendžia iOS", unit: "min." } },
     { k: "widgetCacheMin", label: "Widget reuses data younger than", help: "Older data is loaded from TAMO again", unit: "min", def: 30, min: 10, max: 120, step: 5,
       lt: { label: "Valdiklis naudoja duomenis, jaunesnius nei", help: "Senesni duomenys vėl įkeliami iš TAMO", unit: "min." } },
+    { k: "widgetStaleMin", label: "Mark the widget as out of date after", help: "Older data shows \"Updated …\" in amber", unit: "min", def: 720, min: 60, max: 2880, step: 60,
+      lt: { label: "Pažymėti valdiklį kaip pasenusį po", help: "Senesni duomenys rodomi kaip „Atnaujinta …“ gintaro spalva", unit: "min." } },
   ]],
 ];
 const CFG_FLAT = CONFIG.flatMap(([, items]) => items);
@@ -764,6 +768,143 @@ function clearCache() {
   try {
     if (fm.fileExists(cachePath())) fm.remove(cachePath());
   } catch (_) {}
+}
+
+// ───────────────────────────── widget content (app-blueprints · widgets) ─────────────────────────────
+// The shared frame (Widget section, below) draws it; this part decides what the widget shows.
+// Privacy: lesson times and subjects, homework due dates and message dates only. No grades, no message
+// text, no sign-in details: the widget sits on an unlocked Home Screen.
+
+const WIDGET_TEXT = {
+  en: {
+    now: (a, b) => `Now ${a}–${b}`, next: (a) => `Next ${a}`, today: "Today",
+    nextCap: (s, a) => `Next: ${s} · ${a}`, thenCap: (s, a) => `Then: ${s} · ${a}`, dayCap: (d, s, a) => `${d}: ${s} · ${a}`,
+    tomorrow: "Tomorrow", days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    over: "Lessons over", none: "No lessons today",
+    due: (n) => `${n} due tomorrow`, late: (n) => `${n} late`, msgs: (n) => `${n} today`, unread: (n) => `${n} unread`,
+    left: (n) => `${n} ${n === 1 ? "lesson" : "lessons"} left today`,
+    signIn: "Open to sign in.", noChild: (p) => `Open Dienynas+ and switch to ${p} once.`,
+  },
+  lt: {
+    now: (a, b) => `Dabar ${a}–${b}`, next: (a) => `Toliau ${a}`, today: "Šiandien",
+    nextCap: (s, a) => `Toliau: ${s} · ${a}`, thenCap: (s, a) => `Po to: ${s} · ${a}`, dayCap: (d, s, a) => `${d}: ${s} · ${a}`,
+    tomorrow: "Rytoj", days: ["Pirmadienis", "Antradienis", "Trečiadienis", "Ketvirtadienis", "Penktadienis", "Šeštadienis", "Sekmadienis"],
+    over: "Pamokos baigėsi", none: "Šiandien pamokų nėra",
+    due: (n) => `${n} rytoj`, late: (n) => `${n} vėluoja`, msgs: (n) => `${n} šiandien`, unread: (n) => `${n} ${ltPlural(n, "neperskaityta", "neperskaitytos", "neperskaitytų")}`,
+    left: (n) => `Šiandien liko ${n} ${ltPlural(n, "pamoka", "pamokos", "pamokų")}`,
+    signIn: "Atidarykite, kad prisijungtumėte.", noChild: (p) => `Atidarykite Dienynas+ ir vieną kartą perjunkite į ${p}.`,
+  },
+};
+
+// Lithuanian number agreement: 1, 21 pamoka · 2–9, 22 pamokos · 10–20, 30 pamokų.
+function ltPlural(n, one, few, many) {
+  if (n % 10 === 1 && n % 100 !== 11) return one;
+  return n % 10 >= 2 && (n % 100 < 10 || n % 100 > 20) ? few : many;
+}
+
+// What the widget needs from one TAMO load, kept per child so the widget parameter can pick one.
+// Merged with the children saved before; the app calls saveWidget(widgetSnapshot(data)) after TAMO answers.
+function widgetSnapshot(data) {
+  const prev = readWidget() || {};
+  const children = Object.assign({}, prev.children);
+  const key = data.child.key;
+  const days = {};
+  [data.weeks["0"], data.weeks["1"]].forEach((w) => (w || []).forEach((d) => {
+    if (d && d.date) days[d.date] = (d.lessons || []).filter((l) => l.start && l.subject).map((l) => compact({ n: l.number, start: l.start, end: l.end, subject: l.subject }));
+  }));
+  const since = addDays(data.today, -7);
+  children[key] = {
+    name: data.child.title || "",
+    at: data.at || Date.now(),
+    days: Object.keys(days).length ? days : (children[key] && children[key].days) || {},   // a failed schedule keeps the last one
+    due: (data.homework || []).filter((i) => !i.done && i.due).map((i) => i.due),
+    msgs: (data.messages || []).filter((x) => x.date >= since).map((x) => (x.unread ? { d: x.date, u: 1 } : { d: x.date })),
+  };
+  return { current: key, multi: !!data.multipleChildren, children };
+}
+
+// Asks TAMO for fresh data, within one request time limit (TAMO › requestWait); null when it can't.
+async function widgetRefresh() {
+  let timer = null;
+  const late = new Promise((resolve) => { timer = Timer.schedule(cfg("requestWait") * 1000, false, () => resolve(null)); });
+  const load = loadAll(new Tamo(false)).catch((e) => { console.log(`Widget: TAMO not reached: ${(e && e.message) || e}`); return null; });
+  try {
+    const data = await Promise.race([load, late]);
+    if (!data) return null;
+    const snap = widgetSnapshot(data);
+    saveWidget(snap);
+    return snap;
+  } finally {
+    if (timer) timer.invalidate();
+  }
+}
+
+// The current or next lesson today, homework and message counts, and the rest of the day.
+// Parameter: a child's first or full name, when the account has more than one child.
+async function widgetModel(param) {
+  const T = WIDGET_TEXT[LANG()] || WIDGET_TEXT.en;
+  if (!Keychain.contains(K.user) || !Keychain.contains(K.pass)) return { empty: T.signIn };
+  let snap = readWidget();
+  if (!snap || !snap.children || !snap.current) {   // before the first save (e.g. right after updating from 1.7): the app's cache, read only
+    const cache = readCache();
+    snap = cache ? widgetSnapshot(cache) : null;
+  }
+  const want = String(param || "").trim();
+  let key = snap && snap.current;
+  if (snap && want && snap.multi) {
+    const low = want.toLocaleLowerCase("lt");
+    const names = Object.keys(snap.children).map((k) => [k, String(snap.children[k].name || "").toLocaleLowerCase("lt")]);
+    const hit = names.find(([, n]) => n === low || n.split(/\s+/)[0] === low) || names.find(([, n]) => n.includes(low));
+    if (!hit) return { empty: T.noChild(want) };
+    key = hit[0];
+  }
+  let c = snap && key ? snap.children[key] : null;
+  if ((!c || Date.now() - c.at > cfg("widgetCacheMin") * 60000) && (!snap || key === snap.current)) {
+    const fresh = await widgetRefresh();
+    if (fresh) { snap = fresh; key = fresh.current; c = fresh.children[key]; }
+  }
+  if (!c) return { empty: T.signIn };
+
+  const today = todayV();
+  const p = vilniusParts(new Date(), { hour: "2-digit", minute: "2-digit" });
+  const now = Number(p.hour) * 60 + Number(p.minute);
+  const mins = (s) => (s ? Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5)) : -1);
+  const byTime = (a, b) => mins(a.start) - mins(b.start);
+  const lessons = ((c.days || {})[today] || []).slice().sort(byTime);
+  const cur = lessons.find((l) => mins(l.start) <= now && now < mins(l.end));
+  const hero = cur || lessons.find((l) => mins(l.start) > now);
+  const after = hero ? lessons.slice(lessons.indexOf(hero) + 1) : [];
+  const following = after[0];
+
+  const first = String(c.name || "").split(/\s+/)[0];
+  const m = { badge: first.length > 12 ? `${first.slice(0, 11)}…` : first, at: c.at };
+  if (hero) {
+    m.kicker = cur ? T.now(cur.start, cur.end) : T.next(hero.start);
+    m.title = hero.subject;
+    if (following) m.caption = (cur ? T.nextCap : T.thenCap)(following.subject, following.start);
+  } else {
+    m.kicker = T.today;
+    m.title = lessons.length ? T.over : T.none;
+    const day = Object.keys(c.days || {}).filter((d) => d > today && (c.days[d] || []).length).sort()[0];
+    if (day) {
+      const l = c.days[day].slice().sort(byTime)[0];
+      const name = day === addDays(today, 1) ? T.tomorrow : T.days[(new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7];
+      m.caption = T.dayCap(name, l.subject, l.start);
+    }
+  }
+
+  const due = (c.due || []).filter((d) => d === addDays(today, 1)).length;
+  const late = (c.due || []).filter((d) => d < today && d >= addDays(today, -7)).length;
+  const msgs = (c.msgs || []).filter((x) => x.d === today).length;
+  const unread = (c.msgs || []).filter((x) => x.u && x.d >= addDays(today, -6)).length;
+  m.rows = [
+    { icon: "📝", text: T.due(due) + (late ? `, ${T.late(late)}` : ""), tone: late ? "warn" : undefined },
+    { icon: "✉️", text: T.msgs(msgs) + (unread ? `, ${T.unread(unread)}` : "") },
+  ].concat(after.slice(1).map((l) => ({ icon: l.n ? String(l.n) : "·", text: `${l.start} ${l.subject}`, tone: "soft" })));
+
+  const left = lessons.filter((l) => mins(l.end || l.start) > now).length;
+  if (left) m.footer = T.left(left);
+  return m;
 }
 
 // ───────────────────────────── language ─────────────────────────────
@@ -2915,6 +3056,7 @@ async function runCheck() {
   try {
     data = await loadAll(new Tamo(inApp));
     saveCache(data);
+    saveWidget(widgetSnapshot(data));
   } catch (e) {
     const msg = T.failed(e.message || String(e));
     if (!inApp && e && e.badLogin) await notify(APP_NAME, msg); // offline hiccups stay quiet in the background
@@ -3105,6 +3247,7 @@ class App {
     try {
       const data = await loadAll(this.api);
       saveCache(data);
+      saveWidget(widgetSnapshot(data));   // what the Home Screen widget shows: lesson times, counts, no grades or message text
       this.data = data;
       await afterSplash();   // the launch screen plays out over the cached diary first
       await this.wv.loadHTML(this.page(data));
@@ -3311,6 +3454,7 @@ class App {
       if (await askCredentials()) {
         forgetSession();
         clearCache();
+        saveWidget({ children: {} });   // possibly another account: the widget waits for its data
         if (Keychain.contains(K.role)) Keychain.remove(K.role);
         this.api = new Tamo(true);
         return this.reload();
@@ -3328,79 +3472,255 @@ class App {
       } catch (_) {}
       this.chatState = null;
       clearCache();
+      saveWidget({ children: {} });   // the widget forgets the children too
       return this.wv.loadHTML(messageHTML(APP_NAME, t("signedOut")));
     }
   }
 }
 
-// ───────────────────────────── widget ─────────────────────────────
+// ───────── Widget ─────────
+// Shared widget frame (github.com/gadominas/app-blueprints › blueprints/widgets.md).
+// An app changes only WIDGET and widgetModel(); everything below WB is the same in every app.
+const WIDGET = {
+  name: [BRAND.name, BRAND.plus],         // as on the launch screen: plain part, highlighted part, optional rest
+  accent: '#60A5FA',                      // the logo's focal colour (the launch screen's --sp-accent)
+  icon: REPO_RAW + 'docs/icon-1024.png',  // the app icon, cached on the phone after the first fetch
+  get words() {   // in the app's language; a getter, because WIDGET is built before loadSettings() reads the language
+    return LANG() === 'lt'
+      ? { open: 'Paspauskite, kad atidarytumėte', nothing: 'Kol kas nėra ką rodyti.', updated: 'Atnaujinta', yesterday: 'vakar' }
+      : { open: 'Tap to open', nothing: 'Nothing to show yet.', updated: 'Updated', yesterday: 'yesterday' };
+  },
+};
+// Brand colours, the same in every app and in light and dark mode: the logo tile's ground and lines.
+const WB = { ground: '#0E1116', raised: '#171B22', ink: '#F6F7F9', ink2: '#C9CED6', muted: '#9AA3AE', good: '#2DD4BF', warn: '#FBBF24' };
+const wfm = FileManager.local();
+const wPath = (n) => wfm.joinPath(wfm.documentsDirectory(), APP_ID + '-' + n);
 
-async function runWidget() {
-  let data = readCache();
-  if (!data || Date.now() - data.at > cfg("widgetCacheMin") * 60000) {
-    try {
-      data = await loadAll(new Tamo(false));
-      saveCache(data);
-    } catch (_) {}
+// What the widget shows is saved by the app and only read by the widget: fast, offline, no sign-in.
+function saveWidget(data) {
+  try { wfm.writeString(wPath('widget.json'), JSON.stringify(Object.assign({}, data, { at: Date.now() }))); }
+  catch (e) { console.log('Widget: not saved: ' + e); }
+}
+function readWidget() {
+  try { const p = wPath('widget.json'); return wfm.fileExists(p) ? JSON.parse(wfm.readString(p)) : null; }
+  catch (e) { return null; }
+}
+
+// Tones: ink, soft, muted, accent, good, warn, or a hex colour.
+const wColor = (c, a = 1) => {
+  const k = c === 'soft' ? 'ink2' : c;
+  return new Color(k === 'accent' ? WIDGET.accent : (WB[k] || k), a);
+};
+// Rounded system fonts, falling back to the plain system font on older Scriptable versions.
+function wFont(weight, size) {
+  const name = { bold: 'boldRoundedSystemFont', semi: 'semiboldRoundedSystemFont', med: 'mediumRoundedSystemFont' }[weight] || 'regularRoundedSystemFont';
+  if (typeof Font[name] === 'function') return Font[name](size);
+  return weight === 'bold' ? Font.boldSystemFont(size) : weight === 'semi' ? Font.semiboldSystemFont(size) : weight === 'med' ? Font.mediumSystemFont(size) : Font.systemFont(size);
+}
+function wText(stack, s, size, weight, tone, lines = 1) {
+  const t = stack.addText(String(s));
+  t.font = wFont(weight, size);
+  t.textColor = wColor(tone);
+  t.lineLimit = lines;
+  if (lines === 1) t.minimumScaleFactor = 0.75;
+  return t;
+}
+function wWhen(ts) {
+  const d = new Date(ts), now = new Date(), f = new DateFormatter();
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const ago = Math.round((day(now) - day(d)) / 864e5);
+  if (ago === 1) return WIDGET.words.yesterday;
+  f.dateFormat = ago === 0 ? 'HH:mm' : 'd MMM';
+  return f.string(d);
+}
+
+// The app's logo tile, from the repository's icon, cached per app version; a monogram until then.
+async function widgetIcon() {
+  const p = wPath('widget-icon-' + VERSION + '.png');
+  try {
+    if (wfm.fileExists(p)) return wfm.readImage(p);
+    const r = new Request(WIDGET.icon);
+    r.timeoutInterval = 8;
+    const dc = new DrawContext();
+    dc.size = new Size(96, 96); dc.opaque = false; dc.respectScreenScale = false;
+    dc.drawImageInRect(await r.loadImage(), new Rect(0, 0, 96, 96));
+    const img = dc.getImage();
+    const dir = wfm.documentsDirectory();
+    wfm.listContents(dir).filter((f) => f.startsWith(APP_ID + '-widget-icon-')).forEach((f) => { try { wfm.remove(wfm.joinPath(dir, f)); } catch (e) {} });
+    wfm.writeImage(p, img);
+    return img;
+  } catch (e) {
+    return widgetMonogram();
   }
+}
+function widgetMonogram() {
+  const dc = new DrawContext();
+  dc.size = new Size(96, 96); dc.opaque = false; dc.respectScreenScale = false;
+  dc.setFillColor(wColor('raised')); dc.fillRect(new Rect(0, 0, 96, 96));
+  dc.setFont(wFont('bold', 54)); dc.setTextColor(wColor('accent')); dc.setTextAlignedCenter();
+  dc.drawTextInRect(WIDGET.name.join('').charAt(0), new Rect(0, 14, 96, 70));
+  return dc.getImage();
+}
+
+// Rows that fit: a line counts 1, a sub line 0.8; medium holds 5.5 (3 rows at most), large 12 (6 at most).
+function wFit(rows, budget, max) {
+  const out = [];
+  let used = 0;
+  for (const r of rows || []) {
+    const n = (r.lines || 1) + (r.sub ? 0.8 : 0);
+    if (out.length >= max || used + n > budget + 1e-9) break;   // 1e-9: 3 + 5 × 1.8 must still fit in 12
+    used += n;
+    out.push(r);
+  }
+  return out;
+}
+function wRows(stack, rows) {
+  rows.forEach((r, i) => {
+    if (i) stack.addSpacer(5);
+    const row = stack.addStack();
+    row.topAlignContent(); row.spacing = 6;
+    if (r.url) row.url = r.url;
+    if (r.icon) { const ic = row.addStack(); ic.size = new Size(15, 0); wText(ic, r.icon, 11.5, 'reg', 'ink'); }
+    const tx = row.addStack();
+    tx.layoutVertically();
+    wText(tx, r.text, 12.5, r.lines ? 'reg' : 'med', r.tone || (r.lines ? 'soft' : 'ink'), r.lines || 1);
+    if (r.sub) wText(tx, r.sub, 11, 'reg', 'muted');
+  });
+}
+
+async function renderWidget(m) {
+  const fam = config.widgetFamily || 'medium';
   const w = new ListWidget();
-  // The palette chosen in Settings; Auto follows the system with the Ink and Night palettes.
-  const pal = (k) => settings.theme === "auto" ? Color.dynamic(new Color(PALETTES.ink[k]), new Color(PALETTES.night[k])) : new Color(PALETTES[settings.theme][k]);
-  const ink = pal("ink");
-  const muted = pal("muted");
-  w.backgroundColor = pal("paper");
-  w.url = URLScheme.forRunningScript();
-  w.refreshAfterDate = new Date(Date.now() + cfg("widgetRefreshMin") * 60000);
-  const lt = LANG() === "lt";
-  const line = (text, size, weight, c = ink) => {
-    const x = w.addText(text);
-    x.font = weight === "bold" ? Font.boldRoundedSystemFont(size) : Font.systemFont(size);
-    x.textColor = c;
-    x.lineLimit = 1;
-    return x;
-  };
-  if (!data) {
-    line(APP_NAME, 15, "bold");
-    line(lt ? "Atidarykite, kad prisijungtumėte" : "Open the script to sign in", 12, "", muted);
+  w.url = m.url || URLScheme.forRunningScript();
+  w.refreshAfterDate = new Date(Date.now() + cfg('widgetRefreshMin') * 60e3);
+  if (fam.startsWith('accessory')) return renderAccessory(w, fam, m);
+  const small = fam === 'small', medium = fam === 'medium', large = !small && !medium;
+  const g = new LinearGradient();
+  g.colors = [wColor('raised'), wColor('ground')]; g.locations = [0, 1];
+  g.startPoint = new Point(0, 0); g.endPoint = new Point(0, 1);
+  w.backgroundGradient = g;
+  w.setPadding(14, 14, 14, 14);
+
+  // 1. Header: logo tile, name (highlighted part in the accent), badge
+  const hd = w.addStack();
+  hd.centerAlignContent();
+  const icon = hd.addImage(await widgetIcon());
+  const is = small ? 18 : 20;
+  icon.imageSize = new Size(is, is); icon.cornerRadius = is * 0.225;
+  hd.addSpacer(6);
+  WIDGET.name.forEach((part, i) => {
+    if (!part) return;
+    const t = hd.addText(part);
+    t.font = wFont('bold', small ? 13 : 14); t.textColor = wColor(i === 1 ? 'accent' : 'ink'); t.lineLimit = 1;
+  });
+  hd.addSpacer();
+  if (m.badge && !small) {
+    const b = hd.addStack();
+    b.setPadding(2, 7, 2, 7); b.cornerRadius = 8;
+    b.backgroundColor = wColor(m.badgeTone || 'accent', 0.16);
+    wText(b, m.badge, 11.5, 'semi', m.badgeTone || 'accent');
+  }
+  w.addSpacer(small ? 8 : 10);
+
+  // Empty state: what to do next, never an error
+  if (m.empty) {
+    wText(w, m.empty, 13, 'semi', 'soft', 3);
+    w.addSpacer();
+    wText(w, m.footer || WIDGET.words.open, 11, 'reg', 'muted');
     Script.setWidget(w);
     return;
   }
-  const today = todayV();
-  const day = (data.weeks["0"] || []).concat(data.weeks["1"] || []).find((d) => d.date === today);
-  const p = vilniusParts(new Date(), { hour: "2-digit", minute: "2-digit" });
-  const now = Number(p.hour) * 60 + Number(p.minute);
-  const m = (s) => (s ? Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5)) : -1);
-  const lessons = (day && day.lessons) || [];
-  const cur = lessons.find((l) => m(l.start) <= now && now < m(l.end));
-  const nxt = lessons.find((l) => m(l.start) > now);
-  line(data.child.title, 12, "bold", muted);
-  w.addSpacer(4);
-  if (cur) {
-    line(`${lt ? "Dabar" : "Now"} ${cur.start}–${cur.end}`, 11, "", muted);
-    line(cur.subject, 17, "bold");
-  } else if (nxt) {
-    line(`${lt ? "Toliau" : "Next"} ${nxt.start}`, 11, "", muted);
-    line(nxt.subject, 17, "bold");
+
+  // 2. Hero: kicker, then a big value with its caption, or a title with its caption
+  const body = w.addStack();
+  body.topAlignContent();
+  const left = body.addStack();
+  left.layoutVertically();
+  if (medium) left.size = new Size(136, 0);
+  if (m.kicker) wText(left, m.kicker, 11, 'semi', m.kickerTone || 'accent');
+  if (m.value != null && m.value !== '') {
+    wText(left, m.value, small ? 40 : 42, 'bold', m.valueTone || 'ink');
+    if (m.caption) wText(left, m.caption, 13, 'semi', 'ink');
   } else {
-    line(lt ? (lessons.length ? "Pamokos baigėsi" : "Pamokų nėra") : lessons.length ? "Lessons over" : "No lessons", 16, "bold");
+    if (m.title) wText(left, m.title, small ? 16 : 18, 'bold', 'ink', 2);
+    if (m.caption) { left.addSpacer(2); wText(left, m.caption, 12, 'reg', 'soft', 2); }
   }
+
+  // 3. Rows: beside the hero on medium, under it on large, none on small
+  const rows = m.rows || [];
+  if (medium && wFit(rows, 5.5, 3).length) {
+    body.addSpacer(12);
+    const right = body.addStack();
+    right.layoutVertically();
+    wRows(right, wFit(rows, 5.5, 3));
+  }
+  body.addSpacer();
+  if (large && wFit(rows, 12, 6).length) { w.addSpacer(14); wRows(w, wFit(rows, 12, 6)); }
+
+  // 4. Footer: one muted line; amber when the data is stale. Small shows the badge here if there's no footer.
   w.addSpacer();
-  const tomorrow = addDays(today, 1);
-  const dueTomorrow = data.homework.filter((i) => !i.done && i.due === tomorrow).length;
-  const overdue = data.homework.filter((i) => !i.done && i.due < today && i.due >= addDays(today, -7)).length;
-  const msgsToday = data.messages.filter((x) => x.date === today);
-  const unread = data.messages.filter((x) => x.unread && x.date >= addDays(today, -6)).length;
-  line(`📝 ${dueTomorrow} ${lt ? "rytoj" : "due tomorrow"}${overdue ? `, ${overdue} ${lt ? "vėluoja" : "late"}` : ""}`, 12, "");
-  line(`✉️ ${msgsToday.length} ${lt ? "šiandien" : "today"}${unread ? `, ${unread} ${lt ? "neperskait." : "unread"}` : ""}`, 12, "");
+  const ft = small ? (m.footer || m.badge) : m.footer;
+  if (ft) wText(w, (m.stale ? '⟳ ' : '') + ft, 11, 'reg', m.stale ? 'warn' : 'muted');
   Script.setWidget(w);
 }
 
+// Lock Screen: iOS tints these, so text only, no colours or logo.
+function renderAccessory(w, fam, m) {
+  const name = WIDGET.name.join('');
+  const a = m.accessory || {};
+  const hasValue = m.value != null && m.value !== '';
+  const hero = m.empty || (hasValue ? (m.value + ' ' + (m.caption || '')).trim() : (m.title || ''));
+  if (fam === 'accessoryInline') {
+    w.addText(a.inline || (hero ? name + ': ' + hero : name));
+  } else if (fam === 'accessoryCircular') {
+    w.addAccessoryWidgetBackground = true;
+    const c = w.addStack();
+    c.layoutVertically(); c.centerAlignContent();
+    const gl = c.addText(a.glyph || name.charAt(0)); gl.font = Font.systemFont(11); gl.centerAlignText();
+    const v = c.addText(String(a.value != null ? a.value : hasValue ? m.value : '–'));
+    v.font = wFont('bold', 20); v.minimumScaleFactor = 0.5; v.centerAlignText();
+  } else {
+    const lines = [
+      [[name, m.badge || m.kicker].filter(Boolean).join(' · '), 'semi', 12],
+      [hero, 'bold', 15],
+      [m.empty ? '' : hasValue ? (m.footer || '') : (m.caption || m.footer || ''), 'reg', 12],
+    ];
+    lines.forEach(([s, wt, size]) => { if (!s) return; const t = w.addText(s); t.font = wFont(wt, size); t.lineLimit = 1; t.minimumScaleFactor = 0.7; });
+  }
+  Script.setWidget(w);
+}
+
+// Widget runs come here and only here: no WebView, Alert or QuickLook may be built or presented.
+async function runWidget() {
+  const name = WIDGET.name.join('');
+  let m = null;
+  try { m = await widgetModel(args.widgetParameter || '', config.widgetFamily || 'medium'); }
+  catch (e) { console.error('Widget model: ' + e); }
+  if (!m) m = { empty: WIDGET.words.nothing };
+  try {
+    if (m.at && !m.empty && Date.now() - m.at > cfg('widgetStaleMin') * 60e3) {
+      m.stale = true;
+      m.footer = WIDGET.words.updated + ' ' + wWhen(m.at);
+    }
+    await renderWidget(m);
+  } catch (e) {
+    console.error('Widget render: ' + e);
+    const w = new ListWidget();
+    w.backgroundColor = wColor('ground');
+    w.url = URLScheme.forRunningScript();
+    wText(w, name, 14, 'bold', 'ink');
+    w.addSpacer(4);
+    wText(w, WIDGET.words.open, 12, 'reg', 'muted');
+    Script.setWidget(w);
+  }
+}
+// ───────── end of Widget ─────────
+
 // ───────────────────────────── entry ─────────────────────────────
 
+// The app and the Shortcuts check; widget runs never come here (see the branch below).
 async function main() {
-  await loadSettings();   // before every branch: app, widget and the Shortcuts check use the saved choices
   aiMigrate(["dienynasplus.openai-key"]);   // 1.4.x kept one OpenAI key under another name
-  if (config.runsInWidget) return runWidget();
   if (isCheckRun()) return runCheck();
   if (!Keychain.contains(K.user) || !Keychain.contains(K.pass)) {
     if (!(await askCredentials())) return;
@@ -3409,6 +3729,12 @@ async function main() {
 }
 
 if (!globalThis.__DIENYNAS_TEST__) {
-  await main();
+  await loadSettings();   // before every branch: app, widget and Shortcuts runs all use the saved choices
+  if (config.runsInWidget || config.runsInAccessoryWidget) {
+    await runWidget();             // never builds or presents a WebView, Alert or QuickLook
+  } else {
+    widgetIcon();                  // caches the logo tile for the widget, in the background
+    await main();
+  }
   Script.complete();
 }
