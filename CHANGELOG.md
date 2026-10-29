@@ -2,6 +2,23 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.8.0 (2026-10-29): Today at a glance
+
+- 🧩 **A widget that matches**: The logo, the child's name and the lesson now or next, in the frame all the apps share.
+- 📝 **The day in one look**: Homework due tomorrow, today's messages and the lessons left, with no grades or message text.
+- 👧 **One widget per child**: Type a child's name in the widget's Parameter; old data shows when it was updated.
+
+**Changes**
+
+- Home Screen widget redrawn in the shared widget frame (app-blueprints · widgets 1.0.0): Dienynas+ logo tile and name on the brand's dark ground, the child's first name as a badge, the current lesson ("Now 12:15–13:00") or the next one ("Next 13:10") with the lesson after it, then homework due tomorrow (and late), today's messages (and unread) and the rest of today's lessons; the footer says how many lessons are left today
+- Small, medium, large and the three Lock Screen sizes; every widget string follows the app language (Lithuanian or English)
+- Widget parameter: a child's name picks that child when the account has more than one; each child's widget data is saved when the app shows that child
+- The widget keeps its own small snapshot (lesson times and subjects, homework due dates, message dates): no grades, no message text, no sign-in details; it is saved after TAMO answers in the app or in the Shortcuts check and emptied on sign-out
+- The widget still asks TAMO itself when its data is older than Settings › Widget › "Widget reuses data younger than", now within one TAMO request time limit in total, and shows the last snapshot when TAMO doesn't answer in time
+- New setting: Settings › Widget › "Mark the widget as out of date after" (12 hours by default); older data reads "⟳ Updated …" in amber
+- Widget runs never build the app's screen and never show an error: a problem gives "Open to sign in" or a plain "Tap to open" tile
+- Follows the shared widgets blueprint 1.0.0; Settings › Built with lists it
+
 ## 1.7.0 (2026-10-29): Messages. Homework. Calm.
 
 - 📅 **A logo of its own**: A week calendar with a teal homework day and a blue plus on the selected day.
