@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Dienynas+ logo: a week calendar with a teal homework day and a blue plus on the selected day">
+  <rect width="240" height="240" rx="54" fill="#0E1116"/>
+  <g fill="#F6F7F9" fill-opacity="0.35">
+    <circle cx="120" cy="130" r="7"/>
+    <circle cx="156" cy="130" r="7"/>
+    <circle cx="84" cy="162" r="7"/>
+    <circle cx="120" cy="162" r="7"/>
+  </g>
+  <path d="M76 60 H164 A24 24 0 0 1 188 84 V168 A24 24 0 0 1 164 192 H76 A24 24 0 0 1 52 168 V84 A24 24 0 0 1 76 60 Z" fill="none" stroke="#F6F7F9" stroke-width="13" stroke-linejoin="round"/>
+  <path d="M52 100 H188 M88 44 V72 M152 44 V72" fill="none" stroke="#F6F7F9" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="156" cy="162" r="19" fill="#60A5FA"/>
+  <path d="M152.5 152 A3.5 3.5 0 0 1 159.5 152 V158.5 H166 A3.5 3.5 0 0 1 166 165.5 H159.5 V172 A3.5 3.5 0 0 1 152.5 172 V165.5 H146 A3.5 3.5 0 0 1 146 158.5 H152.5 Z" fill="#0E1116"/>
+  <circle cx="84" cy="130" r="7" fill="#2DD4BF"/>
+</svg>

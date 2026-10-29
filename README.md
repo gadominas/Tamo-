@@ -1,4 +1,7 @@
-# Dienynas+
+<p align="center"><img src="docs/logo.svg" width="112" alt="Dienynas+ logo: a week calendar with a teal homework day and a blue plus on the selected day"></p>
+
+<h1 align="center">Dienynas+</h1>
+<p align="center"><b>Messages. Homework. Calm.</b></p>
 
 A faster, cleaner way to follow your child's school day in the **TAMO dienynas**, the Lithuanian school e-diary, built as a single [Scriptable](https://scriptable.app) script for iPhone.
 
@@ -124,15 +127,19 @@ The assistant is told to answer only from that data, never to invent dates, grad
 
 It works with Claude or OpenAI, set up the same way as in the other apps (see [app-blueprints](https://github.com/gadominas/app-blueprints)). Open **Settings › AI settings** to add your own key, pick any model your key can use, test the connection and see how many tokens Ask has used per day and model. Keys are typed into a native iOS prompt and saved in the iOS Keychain. API usage is billed separately from a chat subscription. Because every question carries the school data and the whole conversation, a question costs roughly a cent or two.
 
+Dienynas+ follows four shared blueprints: in-app updates, settings, AI configuration and launch screen. **Settings › Built with** lists them with their versions; [docs/BLUEPRINTS.md](docs/BLUEPRINTS.md) adds the deviations.
+
 ### Also
 
 <p>
   <img src="screenshots/today-dark.png" width="240" alt="Today screen in dark mode">
   <img src="screenshots/today-lt.png" width="240" alt="Today screen in Lithuanian">
+  <img src="screenshots/launch.png" width="240" alt="Launch screen: the Dienynas+ calendar draws itself, then the tagline Messages. Homework. Calm.">
 </p>
 
 - **Settings** (sliders icon in the header): colours (six palettes or Auto), layout (Comfortable, Compact or one-line Tiny), text size and headline font, plus language, grade scale, Ask, account, updates and tunables with Reset. Changes apply at once and are saved in iCloud Drive › Scriptable › DienynasPlus › `settings.json`; school data, chats and your sign-in stay where they were. The **Built with** section links to the [shared blueprints](https://github.com/gadominas/app-blueprints) the app follows (see [docs/BLUEPRINTS.md](docs/BLUEPRINTS.md)).
 - **Lithuanian and English** interface, switchable in Settings › General.
+- **Launch screen.** Dienynas+ opens on its logo for 2.4 seconds: the calendar draws itself, then "Messages. Homework. Calm." ("Žinutės. Užduotys. Ramybė." in Lithuanian). Tap to skip; with Reduce Motion it appears without movement. It is the shared [launch-screen](https://github.com/gadominas/app-blueprints/blob/main/blueprints/launch-screen.md) blueprint, so all the apps start the same way.
 - **Dark mode** follows the iPhone setting with Auto colours, or pick a palette in Settings › Appearance.
 - **Several children on one account:** the app asks whose diary to show and remembers the choice; switch any time from Settings › Account.
 - **Home-screen widget** with the current or next lesson, homework due tomorrow and today's messages. Tapping it opens the app.

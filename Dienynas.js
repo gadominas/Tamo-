@@ -13,6 +13,9 @@
  * Run as an app for the full UI; add it as a Scriptable widget for a glanceable "today" view.
  *
  * Unofficial: TAMO's terms of use do not cover third-party clients. Use with your own account only.
+ *
+ * Opens on a 2.4 s launch screen with the Dienynas+ calendar logo (app-blueprints · launch-screen).
+ * The BLUEPRINTS block below lists every shared blueprint this app follows (Settings › Built with).
  */
 
 const APP_NAME = "Dienynas+";
@@ -24,7 +27,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -39,6 +42,7 @@ const BLUEPRINTS = [
   { id: 'in-app-updates', name: 'In-app updates', version: '1.0.0', since: '1.4.0' },
   { id: 'settings', name: 'Settings', version: '1.0.0', since: '1.6.0' },
   { id: 'ai-configuration', name: 'AI configuration', version: '1.0.0', since: '1.5.0' },
+  { id: 'launch-screen', name: 'Launch screen', version: '1.0.0', since: '1.7.0' },
 ];
 
 const K = {
@@ -928,8 +932,8 @@ header.top{display:flex;align-items:flex-start;justify-content:space-between;gap
 .tools{display:flex;gap:6px}
 .icon-btn{width:38px;height:38px;border-radius:19px;background:var(--card);display:grid;place-items:center;border:1px solid var(--line)}
 .icon-btn svg{width:19px;height:19px;stroke:var(--ink);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.icon-btn.spin svg{animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+.icon-btn.busy svg{animation:turn 1s linear infinite}
+@keyframes turn{to{transform:rotate(360deg)}}
 h1.date{font:800 calc(30px * var(--ts))/1.08 var(--display);letter-spacing:-.02em;margin:4px 18px 2px}
 .sub{margin:0 18px 14px;color:var(--muted);font-size:calc(15px * var(--ts))}
 main{padding:0 14px}
@@ -1080,7 +1084,40 @@ footer{color:var(--faint);font-size:calc(12.5px * var(--ts));text-align:center;m
 .composer .send:disabled{opacity:.4}
 .composer .send svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .askhint{color:var(--faint);font-size:calc(12.5px * var(--ts));text-align:center;margin:2px 0 0}
-@media (prefers-reduced-motion: reduce){ .sheet{transition:none} .icon-btn.spin svg{animation:none} .typing i{animation:none;opacity:.6} }
+@media (prefers-reduced-motion: reduce){ .sheet{transition:none} .icon-btn.busy svg{animation:none} .typing i{animation:none;opacity:.6} }
+/* Dienynas+ logo: calendar plus (header mark, loading and sign-in screens, launch screen) */
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:#0E1116;flex:none;box-shadow:inset 0 0 0 1px rgba(246,247,249,.14)}
+.idleMark{display:block;width:76px;height:76px;margin:0 0 16px;border-radius:18px;background:#0E1116}
+/* Launch screen (app-blueprints · launch-screen 1.0.0) */
+.splash{--sp-bg:#0E1116;--sp-ink:#F6F7F9;--sp-accent:#60A5FA;--sp-accent2:#2DD4BF;--sp-muted:#9AA3AE;--sp-font:var(--display);--sp-sweep-from:-40px;
+  position:fixed;inset:0;z-index:90;background:var(--sp-bg);color:var(--sp-ink);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer;
+  animation:spOut .4s ease 2.4s forwards}
+.splash.gone{display:none}
+.spIcon{width:148px;height:148px;opacity:0;transform:scale(.86);animation:spIn .5s cubic-bezier(.2,.9,.3,1.2) .05s forwards}
+.spIcon svg{width:100%;height:100%;display:block;overflow:visible}
+.spFrame{fill:none;stroke:var(--sp-ink);stroke-opacity:.35;stroke-width:7;stroke-linecap:round;stroke-linejoin:round;opacity:0;animation:spFade .4s ease .25s forwards}
+.spDraw{fill:none;stroke:var(--sp-ink);stroke-width:13;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:100;stroke-dashoffset:100;animation:spDraw .8s ease-in-out .15s forwards}
+.spPop{fill:var(--sp-accent);transform-box:fill-box;transform-origin:center;transform:scale(0);animation:spPop .45s cubic-bezier(.3,1.7,.5,1) .75s forwards}
+.spDetail{fill:var(--sp-ink);opacity:0;animation:spFade .3s ease 1.05s forwards}
+.spSweep{fill:none;stroke:var(--sp-accent2);stroke-width:7;stroke-linecap:round;opacity:0;transform:translateX(var(--sp-sweep-from,-120px));animation:spSweep 1s ease-in-out .95s forwards}
+.spWord{font:800 40px/1 var(--sp-font,ui-rounded,-apple-system,system-ui,sans-serif);letter-spacing:-.02em;opacity:0;transform:translateY(10px);animation:spUp .45s ease 1.05s forwards}
+.spWord span{color:var(--sp-accent)}
+.spTag{font:600 15px/1.3 -apple-system,system-ui,sans-serif;letter-spacing:.06em;color:var(--sp-muted);opacity:0;transform:translateY(8px);animation:spUp .45s ease 1.4s forwards}
+@keyframes spIn{to{opacity:1;transform:scale(1)}}
+@keyframes spFade{to{opacity:1}}
+@keyframes spDraw{to{stroke-dashoffset:0}}
+@keyframes spPop{to{transform:scale(1)}}
+@keyframes spSweep{0%{opacity:0}15%{opacity:1}100%{opacity:1;transform:translateX(0)}}
+@keyframes spUp{to{opacity:1;transform:none}}
+@keyframes spOut{to{opacity:0;visibility:hidden}}
+@media (prefers-reduced-motion:reduce){
+  .splash *{animation:none!important;opacity:1!important;transform:none!important;stroke-dashoffset:0!important}
+  .splash{animation:spOut .3s ease 1.6s forwards!important}
+}
+/* Dienynas+ deviation: the plus is cut out of the blue day, so it takes the background colour */
+.splash .spDetail{fill:var(--sp-bg)}
 
 /* Tiny: one line per item; tap a homework item or note to see all of it */
 body.d-tiny .row .main{display:flex;align-items:baseline;gap:8px;flex-wrap:nowrap}
@@ -2022,7 +2059,7 @@ function pageMain() {
     const unread = (D.messages || []).filter((m) => m.unread && m.date >= addDays(D.today, -6)).length;
     const hwBadge = (D.homework || []).filter((i) => !i.done && i.due && i.due >= addDays(D.today, -7) && i.due <= addDays(D.today, 1)).length;
     const head = `<header class="top">
-      <div class="who"><b>${h(D.child.title)}</b>${h(D.child.subtitle || "")}</div>
+      <div class="brand"><svg class="brand-mark" viewBox="0 0 240 240" aria-hidden="true">${D.logo || ""}</svg><div class="who"><b>${h(D.child.title)}</b>${h(D.child.subtitle || "")}</div></div>
       <div class="tools">
         ${D.hasAiKey ? `<button class="icon-btn ${S.tab === 5 ? "on" : ""}" data-tab="5" aria-label="ask"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>` : ""}
         <button class="icon-btn" id="refresh" aria-label="refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></button>
@@ -2138,8 +2175,8 @@ function pageMain() {
     }
     if (el.dataset.msg) return openMessage(JSON.parse(el.dataset.msg));
     if (el.id === "refresh") {
-      el.classList.add("spin");
-      return call("refresh").catch(() => el.classList.remove("spin"));
+      el.classList.add("busy");
+      return call("refresh").catch(() => el.classList.remove("busy"));
     }
     if (el.id === "settings") return openSettings();
   });
@@ -2165,14 +2202,53 @@ function pageMain() {
   }, 60000);
 }
 
+// ───────── Logo and launch screen (app-blueprints · launch-screen 1.0.0) ─────────
+// The Dienynas+ logo: a week calendar with a teal homework day and a blue plus on the selected day.
+// Same geometry as docs/logo.svg; used for the header mark and the loading and sign-in screens.
+const LOGO_PARTS = '<g fill="#F6F7F9" fill-opacity="0.35"><circle cx="120" cy="130" r="7"/><circle cx="156" cy="130" r="7"/><circle cx="84" cy="162" r="7"/><circle cx="120" cy="162" r="7"/></g><path d="M76 60 H164 A24 24 0 0 1 188 84 V168 A24 24 0 0 1 164 192 H76 A24 24 0 0 1 52 168 V84 A24 24 0 0 1 76 60 Z" fill="none" stroke="#F6F7F9" stroke-width="13" stroke-linejoin="round"/><path d="M52 100 H188 M88 44 V72 M152 44 V72" fill="none" stroke="#F6F7F9" stroke-width="13" stroke-linecap="round"/><circle cx="156" cy="162" r="19" fill="#60A5FA"/><path d="M152.5 152 A3.5 3.5 0 0 1 159.5 152 V158.5 H166 A3.5 3.5 0 0 1 166 165.5 H159.5 V172 A3.5 3.5 0 0 1 152.5 172 V165.5 H146 A3.5 3.5 0 0 1 146 158.5 H152.5 Z" fill="#0E1116"/><circle cx="84" cy="130" r="7" fill="#2DD4BF"/>';
+const BRAND = { name: "Dienynas", plus: "+", tag: { en: "Messages. Homework. Calm.", lt: "Žinutės. Užduotys. Ramybė." } };
+
+// Shown once per run, on the first screen the app loads (cached diary or "Loading…").
+// Later page loads wait for it to fade (afterSplash), so fresh data never cuts it short.
+let splashAt = 0;
+function splashHTML() {
+  if (splashAt) return "";
+  splashAt = Date.now();
+  const tag = BRAND.tag[LANG() === "lt" ? "lt" : "en"];
+  return `<div class="splash" id="splash" role="img" aria-label="${BRAND.name}${BRAND.plus}. ${tag}">
+  <div class="spIcon"><svg viewBox="0 0 240 240" aria-hidden="true">
+    <circle class="spFrame" cx="120" cy="130" r="3.5"></circle><circle class="spFrame" cx="156" cy="130" r="3.5"></circle><circle class="spFrame" cx="84" cy="162" r="3.5"></circle><circle class="spFrame" cx="120" cy="162" r="3.5"></circle>
+    <path class="spDraw" pathLength="100" d="M76 60 H164 A24 24 0 0 1 188 84 V168 A24 24 0 0 1 164 192 H76 A24 24 0 0 1 52 168 V84 A24 24 0 0 1 76 60 Z"></path>
+    <path class="spDraw" pathLength="100" d="M52 100 H188 M88 44 V72 M152 44 V72"></path>
+    <circle class="spPop" cx="156" cy="162" r="19"></circle>
+    <path class="spDetail" d="M152.5 152 A3.5 3.5 0 0 1 159.5 152 V158.5 H166 A3.5 3.5 0 0 1 166 165.5 H159.5 V172 A3.5 3.5 0 0 1 152.5 172 V165.5 H146 A3.5 3.5 0 0 1 146 158.5 H152.5 Z"></path>
+    <circle class="spSweep" cx="84" cy="130" r="3.5"></circle>
+  </svg></div>
+  <div class="spWord">${BRAND.name}<span>${BRAND.plus}</span></div>
+  <div class="spTag">${tag}</div>
+</div>`;
+}
+async function afterSplash() {
+  const left = splashAt + 2900 - Date.now();
+  if (left > 0) await new Promise((resolve) => Timer.schedule(left, false, resolve));
+}
+// The launch screen's script: first in the page script, self-contained ES5 (no backticks, no ${).
+const SPLASH_JS = '(function () {' +
+  '  var sp = document.getElementById("splash");' +
+  '  if (!sp) return;' +
+  '  function gone() { sp.classList.add("gone"); sp.setAttribute("aria-hidden", "true"); }' +
+  '  sp.addEventListener("click", gone);' +   // tap to skip
+  '  setTimeout(gone, 2900);' +               // out of the page once the CSS fade is done
+  '})();';
+
 function buildHTML(data) {
-  const payload = { ...data, lang: LANG(), version: VERSION, look: lookState() };
+  const payload = { ...data, lang: LANG(), version: VERSION, look: lookState(), logo: LOGO_PARTS };
   const look = lookState();
   return `<!doctype html><html data-theme="${look.shown}" data-font="${look.font}" style="--ts:${look.textSize}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>${CSS}</style>${NO_ZOOM}</head><body class="d-${look.density}">
-<div id="app"></div><div class="scrim"></div><div class="sheet" id="sheet"></div>
-<script>window.DATA=${safeJSON(payload)};(${pageMain.toString()})();</script>
+${splashHTML()}<div id="app"></div><div class="scrim"></div><div class="sheet" id="sheet"></div>
+<script>${SPLASH_JS}window.DATA=${safeJSON(payload)};(${pageMain.toString()})();</script>
 </body></html>`;
 }
 
@@ -2182,7 +2258,8 @@ function messageHTML(title, message, buttons = []) {
   .center{min-height:80vh;display:flex;flex-direction:column;justify-content:center;padding:24px}
   .btn{display:block;margin-top:12px;padding:13px;border-radius:14px;background:var(--ink);color:var(--card);font-weight:700;text-align:center;width:100%}
   .btn.alt{background:var(--chip);color:var(--ink)}</style>${NO_ZOOM}</head><body style="padding-bottom:0">
-  <div class="center"><h1 class="date" style="margin:0 0 8px">${esc(title)}</h1><p class="sub" style="margin:0 0 18px">${esc(message)}</p>
+  ${splashHTML()}<script>${SPLASH_JS}</script>
+  <div class="center"><svg class="idleMark" viewBox="0 0 240 240" role="img" aria-label="Dienynas+ logo">${LOGO_PARTS}</svg><h1 class="date" style="margin:0 0 8px">${esc(title)}</h1><p class="sub" style="margin:0 0 18px">${esc(message)}</p>
   ${buttons.map((b, i) => `<button class="btn ${i ? "alt" : ""}" onclick="location.href='tamo://${b.action}?id=0&p=%7B%7D'">${esc(b.label)}</button>`).join("")}</div></body></html>`;
 }
 
@@ -3029,6 +3106,7 @@ class App {
       const data = await loadAll(this.api);
       saveCache(data);
       this.data = data;
+      await afterSplash();   // the launch screen plays out over the cached diary first
       await this.wv.loadHTML(this.page(data));
       // pop up anything new since the last run (scheduled check or app launch)
       if (announce) {
@@ -3036,6 +3114,7 @@ class App {
         if (news.total) await showNewsAlert(news, data, false);
       }
     } catch (e) {
+      await afterSplash();
       if (e && e.badLogin) {
         await this.wv.loadHTML(
           messageHTML(APP_NAME, `${e.message}.`, [
