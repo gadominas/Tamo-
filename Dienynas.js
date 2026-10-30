@@ -15,7 +15,9 @@
  *
  * Unofficial: TAMO's terms of use do not cover third-party clients. Use with your own account only.
  *
- * Opens on a 2.4 s launch screen with the Dienynas+ calendar logo (app-blueprints · launch-screen).
+ * Opens on a 2.4 s launch screen with the Dienynas+ calendar logo (app-blueprints · launch-screen), drawn in an
+ * empty window that is already on screen; the diary is handed over after (app-blueprints · recipes/safe-startup).
+ * Without an AI key, a short invitation now and then shows what ✨ Ask adds (app-blueprints · ai-invitation).
  * The BLUEPRINTS block below lists every shared blueprint this app follows (Settings › Built with).
  */
 
@@ -28,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.8.0';
+const VERSION = '1.9.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -45,6 +47,7 @@ const BLUEPRINTS = [
   { id: 'ai-configuration', name: 'AI configuration', version: '1.0.0', since: '1.5.0' },
   { id: 'launch-screen', name: 'Launch screen', version: '1.0.0', since: '1.7.0' },
   { id: 'widgets', name: 'Widgets', version: '1.0.0', since: '1.8.0' },
+  { id: 'ai-invitation', name: 'AI invitation', version: '1.2.0', since: '1.9.0' },
 ];
 
 const K = {
@@ -57,21 +60,63 @@ const K = {
   scale: "dienynasplus.grade-scale",
 };
 
+// ───────── AI invitation (app-blueprints · ai-invitation) ─────────
+// What the invitation promises. Exactly three perks, each a real feature that needs a key (all of them ✨ Ask,
+// the app's one AI feature, hidden without a key). Dienynas+: `lt` is shown when the app language is Lithuanian.
+const AI_INVITE = {
+  title: "Give Dienynas+ superpowers",          // punchy, names the app, at most 32 characters
+  perks: [                                      // icon + at most 48 characters each
+    { icon: "✦", text: "Ask anything about the school week" },
+    { icon: "🎒", text: "What's due tomorrow and what to pack" },
+    { icon: "✉️", text: "Teachers' messages, summed up for you" },
+  ],
+  lt: {
+    title: "Suteikite Dienynas+ supergalių",
+    perks: [
+      { icon: "✦", text: "Klauskite bet ko apie mokyklos savaitę" },
+      { icon: "🎒", text: "Kas užduota rytojui ir ką įsidėti į kuprinę" },
+      { icon: "✉️", text: "Mokytojų žinutės, apibendrintos už jus" },
+    ],
+  },
+};
+
 // ───────────────────────────── settings (app-blueprints · settings) ─────────────────────────────
 // Choices live in settings.json in iCloud Drive › Scriptable › DienynasPlus; school data, chats and sign-in stay where they were.
 const SET_APP = "DienynasPlus";
 const sfm = (() => { try { return FileManager.iCloud(); } catch (e) { return FileManager.local(); } })();
 const SET_DIR = sfm.joinPath(sfm.documentsDirectory(), SET_APP);
 const SP = (n) => sfm.joinPath(SET_DIR, n + ".json");
-async function load(n, def) {
+
+// A short start-up log on the phone (local, not iCloud): Settings › Updates › Start-up log, and on screen if opening stalls.
+// It records timings and file names only: never sign-in details, names or school data (recipe · safe-startup).
+const LOG_PATH = FileManager.local().joinPath(FileManager.local().documentsDirectory(), APP_ID + "-startup.log");
+function startLog(msg) {
+  try {
+    const lfm = FileManager.local(), line = new Date().toISOString().slice(11, 19) + "  " + msg;
+    const old = lfm.fileExists(LOG_PATH) ? lfm.readString(LOG_PATH).split("\n").slice(-60) : [];
+    lfm.writeString(LOG_PATH, old.concat(line).join("\n"));
+  } catch (e) {}
+}
+
+const loadIssues = [];   // files iCloud didn't hand over in time
+async function load(n, def, waitMs = 10000) {
   const p = SP(n);
   if (!sfm.fileExists(p)) return def;
   try {
-    if (sfm.isFileStoredIniCloud(p) && !sfm.isFileDownloaded(p)) await sfm.downloadFileFromiCloud(p);
+    if (sfm.isFileStoredIniCloud(p) && !sfm.isFileDownloaded(p)) {
+      // iCloud can take a long time (or forever, offline): never let start-up hang on it
+      await Promise.race([sfm.downloadFileFromiCloud(p), new Promise((r) => Timer.schedule(waitMs, false, r))]);
+      if (!sfm.isFileDownloaded(p)) { loadIssues.push(n); startLog(`iCloud didn't deliver ${n}.json in ${waitMs / 1000} s`); return def; }
+    }
     return JSON.parse(sfm.readString(p));
-  } catch (e) { return def; }   // a broken file falls back to defaults, never crashes
+  } catch (e) { loadIssues.push(n); startLog(`Couldn't read ${n}.json: ${e}`); return def; }   // a broken file falls back to defaults, never crashes
 }
+// Files are only written once they were read, so a slow start can never save defaults over them.
+// settings.json is the only file write() handles; usage is guarded in aiWrite() the same way.
+let settingsOk = false;   // set by loadSettings(): settings that were never read are never saved over
+let dataLoaded = false;   // set by loadData()
 const write = (n, v) => {
+  if (n === "settings" ? !settingsOk : !dataLoaded) return false;
   try { if (!sfm.fileExists(SET_DIR)) sfm.createDirectory(SET_DIR, true); sfm.writeString(SP(n), JSON.stringify(v)); return true; }
   catch (e) { console.warn(`Couldn't save ${n}: ${e}`); return false; }
 };
@@ -104,6 +149,7 @@ function setSetting(k, v) {
 
 async function loadSettings() {
   const saved = await load("settings", null);
+  settingsOk = !loadIssues.includes("settings");   // not read in time: use defaults, save nothing over the file
   if (saved) Object.assign(settings, saved);
   else {   // first run of 1.6: move what 1.5.x kept in the Keychain into settings.json
     if (Keychain.contains(K.lang)) settings.lang = Keychain.get(K.lang);
@@ -114,6 +160,18 @@ async function loadSettings() {
   for (const k of Object.keys(d)) if (setSetting(k, settings[k]) === null) settings[k] = d[k];
   if (!settings.gradeScales || typeof settings.gradeScales !== "object") settings.gradeScales = {};
   settings.cfg = settings.cfg && typeof settings.cfg === "object" ? settings.cfg : {};
+}
+
+// Data is read in loadData() (recipe · safe-startup): the app shows its first screen before reading it.
+// Dienynas+ keeps its data on this iPhone: the last diary TAMO sent (shown while TAMO is asked again) and the
+// AI token usage. Chats and "what's new" files are read per child later, after the window is up.
+let diaryCache = null;   // dienynas-plus-cache.json, or null when nothing is saved yet
+async function loadData() {
+  loadIssues.length = 0;
+  diaryCache = readCache();   // a broken cache reads as "nothing saved": TAMO's next answer replaces it
+  try { const p = aiPath("usage"); if (aiFm.fileExists(p)) usage = JSON.parse(aiFm.readString(p)); }
+  catch (e) { loadIssues.push("usage"); startLog(`Couldn't read usage.json: ${e}`); }
+  dataLoaded = loadIssues.length === 0;   // anything missing: show what we have, save nothing over it
 }
 
 // Everything tunable lives here; the Settings screen edits these (stored in settings.cfg, defaults below).
@@ -845,9 +903,8 @@ async function widgetModel(param) {
   const T = WIDGET_TEXT[LANG()] || WIDGET_TEXT.en;
   if (!Keychain.contains(K.user) || !Keychain.contains(K.pass)) return { empty: T.signIn };
   let snap = readWidget();
-  if (!snap || !snap.children || !snap.current) {   // before the first save (e.g. right after updating from 1.7): the app's cache, read only
-    const cache = readCache();
-    snap = cache ? widgetSnapshot(cache) : null;
+  if (!snap || !snap.children || !snap.current) {   // before the first save (e.g. right after updating from 1.7): the app's cache, read only (loadData)
+    snap = diaryCache ? widgetSnapshot(diaryCache) : null;
   }
   const want = String(param || "").trim();
   let key = snap && snap.current;
@@ -1326,6 +1383,44 @@ body.d-tiny .lesson .when{display:inline;margin-left:6px}
 #cfgsheet .chev{flex:none;color:var(--muted);font-size:calc(20px * var(--ts));line-height:1}
 #cfgsheet input,#cfgsheet textarea{-webkit-user-select:text;user-select:text}
 #cfgsheet .srow.act{width:100%}
+/* Safe start-up (app-blueprints · recipes/safe-startup): the placeholder until the data is handed over, and the start-up log */
+.booting{display:flex;align-items:center;justify-content:center;gap:10px;padding:80px 20px;color:var(--muted);font-size:calc(14px * var(--ts))}
+.booting.note{flex-direction:column;text-align:center;color:var(--ink-2);padding:60px 24px}
+.booting.note b{font-size:calc(18px * var(--ts));color:var(--ink)}
+.booting.note pre,.startlog{max-width:100%;overflow:auto;text-align:left;font:12px/1.45 ui-monospace,Menlo,monospace;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:10px;color:var(--ink-2);white-space:pre-wrap;-webkit-user-select:text;user-select:text}
+.startlog{margin:8px 0;max-height:260px}
+.busy-dot{width:15px;height:15px;flex:none;border-radius:50%;border:2px solid var(--rule);border-top-color:var(--signal);animation:bdspin .8s linear infinite}
+@keyframes bdspin{to{transform:rotate(360deg)}}
+/* AI invitation (app-blueprints · ai-invitation): above Settings and the AI sheet, below the update sheet and the launch screen */
+#aiinv{position:fixed;inset:0;z-index:47;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);animation:aiinvFade .25s ease both}
+#aiinv.out{animation:aiinvFadeOut .24s ease both}
+.aiinv-card{position:relative;width:100%;max-width:380px;background:var(--sheet);color:var(--ink);border:1px solid var(--rule);border-radius:24px;padding:26px 22px 16px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.35);animation:aiinvUp .5s cubic-bezier(.2,.9,.3,1.2) both}
+#aiinv.out .aiinv-card{animation:aiinvDown .24s ease both}
+.aiinv-spark{width:56px;height:56px;margin:-4px auto 10px;border-radius:18px;display:grid;place-items:center;font-size:calc(30px * var(--ts));color:var(--signal);background:var(--signal-wash);animation:aiinvTwinkle 2.4s ease-in-out .5s infinite}
+#aiinv h2{margin:0 0 6px;font-family:var(--display);font-size:calc(23px * var(--ts));line-height:1.2;font-weight:800}
+.aiinv-lead{margin:0 0 14px;color:var(--ink-2);font-size:calc(15px * var(--ts))}
+.aiinv-perks{list-style:none;margin:0 0 14px;padding:0;text-align:left}
+.aiinv-perks li{display:flex;gap:10px;align-items:center;padding:9px 12px;margin-bottom:6px;border-radius:12px;background:var(--signal-wash);font-size:calc(15px * var(--ts));font-weight:600;animation:aiinvPerk .4s ease both;animation-delay:calc(.25s + var(--i) * .09s)}
+.aiinv-ico{flex:none;width:22px;text-align:center}
+.aiinv-steps{margin:0 0 16px;padding-left:22px;text-align:left;color:var(--muted);font-size:calc(13px * var(--ts));line-height:1.6}
+.aiinv-go{display:block;width:100%;border:0;border-radius:14px;padding:14px;font:700 calc(17px * var(--ts)) var(--display);color:var(--sheet);background:var(--signal);animation:aiinvGlow 1.6s ease-in-out .9s 2}
+.aiinv-go:focus{outline:none}
+.aiinv-go:focus-visible{box-shadow:0 0 0 4px var(--signal-wash)}
+.aiinv-row{display:flex;justify-content:space-between;gap:8px;margin-top:6px}
+.aiinv-later,.aiinv-never{border:0;background:none;padding:12px 6px;color:var(--muted);font:600 calc(14px * var(--ts)) var(--sans, inherit)}
+.aiinv-later{color:var(--ink-2)}
+.aiinv-nudge{animation:aiinvGlow 1.2s ease-in-out 2}
+@keyframes aiinvFade{from{opacity:0}to{opacity:1}}
+@keyframes aiinvFadeOut{from{opacity:1}to{opacity:0}}
+@keyframes aiinvUp{from{opacity:0;transform:translateY(40px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes aiinvDown{to{opacity:0;transform:translateY(24px) scale(.97)}}
+@keyframes aiinvPerk{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+@keyframes aiinvTwinkle{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.12) rotate(12deg)}}
+@keyframes aiinvGlow{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 6px var(--signal-wash)}}
+@media (prefers-reduced-motion:reduce){
+  #aiinv,#aiinv.out,.aiinv-card,#aiinv.out .aiinv-card,.aiinv-perks li,.aiinv-spark,.aiinv-go,.aiinv-nudge{animation:none}
+  #aiinv.out{opacity:0;transition:opacity .2s}
+}
 `;
 
 // Runs inside the WebView. Kept as a real function so it needs no escaping.
@@ -1875,6 +1970,65 @@ function pageMain() {
     if (st) st.textContent = s.hasKey ? `${AI_PN[s.provider]} — ${s.model[s.provider]}${P && P.calls ? ` — ${aiFmtN(P.in + P.out)} tokens` : ""}` : CT.aiNone;
   };
 
+  // ── AI invitation (app-blueprints · ai-invitation) ── ES5, no backticks, as the blueprint writes it.
+  // Dienynas+: the fixed text follows the app language (the blueprint's English words, or Lithuanian);
+  // aiSend is this page's send(); the app's own message sheet (body.open-sheet) counts as busy too.
+  var INV_TEXT = {
+    en: { lead: "Add an AI key and these switch on:", steps: ["Get a key from Claude or OpenAI", "Paste it in AI settings", "That’s it: these turn on at once"], go: "Turn on AI", later: "Later", never: "Don’t remind me again" },
+    lt: { lead: "Pridėkite DI raktą ir įsijungs šios funkcijos:", steps: ["Gaukite raktą iš Claude arba OpenAI", "Įklijuokite jį į AI nustatymus", "Tai viskas: jos įsijungs iš karto"], go: "Įjungti DI", later: "Vėliau", never: "Daugiau nepriminti" },
+  };
+  window.__aiInvite = function (c) {
+    var tries = 0;
+    (function wait() {
+      // Never over the launch screen, another sheet, or a task the app says can't be interrupted.
+      var busy = document.querySelector("#splash:not(.gone)") || document.getElementById("upd") || document.getElementById("aiinv") ||
+        document.querySelector(".sheet.open, #cfgsheet.open, #aisheet.open, body.open-sheet") || (window.canInvite && !window.canInvite());
+      if (busy) { if (++tries < 40) setTimeout(wait, 500); return; }   // gives up after 20 s; it comes back another day
+      setTimeout(function () { if (!document.getElementById("aiinv")) showInvite(c); }, 600);
+    })();
+  };
+  function escI(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]; }); }
+  function showInvite(c) {
+    var L = INV_TEXT[D.lang] || INV_TEXT.en;
+    var el = document.createElement("div");
+    el.id = "aiinv";
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-labelledby", "aiinv-t");
+    el.innerHTML = '<div class="aiinv-card">' +
+      '<div class="aiinv-spark" aria-hidden="true">✦</div>' +
+      '<h2 id="aiinv-t">' + escI(c.title) + '</h2>' +
+      '<p class="aiinv-lead">' + escI(L.lead) + '</p>' +
+      '<ul class="aiinv-perks">' + c.perks.slice(0, 3).map(function (p, i) {
+        return '<li style="--i:' + i + '"><span class="aiinv-ico" aria-hidden="true">' + escI(p.icon) + '</span>' + escI(p.text) + '</li>';
+      }).join("") + '</ul>' +
+      '<ol class="aiinv-steps">' + L.steps.map(function (s) { return '<li>' + escI(s) + '</li>'; }).join("") + '</ol>' +
+      '<button class="aiinv-go" data-inv="open">' + escI(L.go) + '</button>' +
+      '<div class="aiinv-row"><button class="aiinv-later" data-inv="later">' + escI(L.later) + '</button>' +
+      '<button class="aiinv-never" data-inv="never">' + escI(L.never) + '</button></div></div>';
+    el.addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-inv]") : null;
+      if (!b && e.target !== el) return;      // taps inside the card do nothing
+      closeInvite(b ? b.dataset.inv : "later");   // a tap on the dimmed backdrop counts as Later
+    });
+    document.body.appendChild(el);
+    aiSend("aiinvite", { v: "shown" });
+    var go = el.querySelector(".aiinv-go"); if (go && go.focus) go.focus();
+  }
+  function closeInvite(what) {
+    var el = document.getElementById("aiinv"); if (!el || el.classList.contains("out")) return;
+    el.classList.add("out");
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 260);
+    aiSend("aiinvite", { v: what });
+    if (what === "open") setTimeout(function () {
+      window.__aiOpen();   // the same thing the Settings row's "ai-open" action does
+      // Dienynas+: the AI sheet draws its cards once its state arrives, so look for Add key for up to 2 s.
+      (function nudge(n) {
+        var add = document.querySelector('#aisheet [data-aiact="aikey"]');   // the provider in use comes first
+        if (!add) { if (n < 14) setTimeout(function () { nudge(n + 1); }, 150); return; }
+        add.classList.add("aiinv-nudge"); if (add.scrollIntoView) add.scrollIntoView({ block: "center" }); setTimeout(function () { add.classList.remove("aiinv-nudge"); }, 2600);
+      })(0);
+    }, 280);
+  }
+
   // ── Settings (app-blueprints · settings): every change applies at once and is saved; Done closes ──
   const CT_ALL = {
     en: { title: "Settings", done: "Done", hint: "Changes apply right away and are kept on this iPhone.", appearance: "Appearance", colours: "Colours", layout: "Layout", textSize: "Text size", font: "Headline font",
@@ -1884,6 +2038,7 @@ function pageMain() {
       ask: "Ask", aiRow: "Keys, models and token usage", aiNone: "Add a Claude or OpenAI key for ✨ Ask", aiBtn: "AI settings",
       account: "Account", switchChild: "Switch child", web: "Open TAMO website", login: "Change sign-in details", signout: "Sign out and forget password", signoutHelp: "Keeps these settings", confirm: "Confirm",
       updates: "Updates", offer: "Offer new versions", offerHelp: (v) => `You have Dienynas+ ${v}. “Later” waits two days.`, check: "Check for updates now", checkBtn: "Check", checking: "Checking…",
+      startLog: "Start-up log", startLogHelp: "What happened the last times Dienynas+ opened", show: "Show", hide: "Hide", nothingLogged: "Nothing logged yet.",
       reset: "Reset", original: "original", changed: (n) => `${n} setting${n === 1 ? "" : "s"} changed`, none: "All settings are at their original values", resetAll: "Reset all", confirmReset: "Confirm reset",
       builtWith: "Built with", builtHint: (a) => `${a} is built from shared blueprints that the other apps use too. Tap one to read how that part works.`, bp: (v, a, s) => `Blueprint ${v} · since ${a} ${s}`, all: "All blueprints",
       dec: "Decrease", inc: "Increase" },
@@ -1894,6 +2049,7 @@ function pageMain() {
       ask: "Klausk", aiRow: "Raktai, modeliai ir žetonų naudojimas", aiNone: "Pridėkite Claude arba OpenAI raktą „Klausk“ funkcijai", aiBtn: "AI nustatymai",
       account: "Paskyra", switchChild: "Keisti vaiką", web: "Atidaryti TAMO svetainę", login: "Keisti prisijungimo duomenis", signout: "Atsijungti ir pamiršti slaptažodį", signoutHelp: "Šie nustatymai išlieka", confirm: "Patvirtinti",
       updates: "Atnaujinimai", offer: "Siūlyti naujas versijas", offerHelp: (v) => `Jūsų versija: Dienynas+ ${v}. „Vėliau“ palaukia dvi dienas.`, check: "Tikrinti atnaujinimus dabar", checkBtn: "Tikrinti", checking: "Tikrinama…",
+      startLog: "Paleidimo žurnalas", startLogHelp: "Kas vyko paskutinius kartus atidarant Dienynas+", show: "Rodyti", hide: "Slėpti", nothingLogged: "Kol kas nieko neužrašyta.",
       reset: "Atstatyti", original: "pradinė", changed: (n) => `Pakeista nustatymų: ${n}`, none: "Visi nustatymai pradiniai", resetAll: "Atstatyti viską", confirmReset: "Patvirtinti",
       builtWith: "Sukurta pagal", builtHint: (a) => `${a} sukurta pagal bendrus šablonus, kuriuos naudoja ir kitos programos. Paspauskite, kad perskaitytumėte, kaip veikia ta dalis.`, bp: (v, a, s) => `Šablonas ${v} · nuo ${a} ${s}`, all: "Visi šablonai",
       dec: "Mažinti", inc: "Didinti" },
@@ -1976,6 +2132,8 @@ function pageMain() {
       <h3 class="sec">${h(CT.updates)}</h3>
       ${swRow("checkUpdates", CT.offer, CT.offerHelp(SET.version))}
       <div class="srow"><div class="grow"><b>${h(CT.check)}</b><small id="updmsg" class="muted" aria-live="polite"></small></div><button class="sm" data-act="updcheck">${h(CT.checkBtn)}</button></div>
+      <div class="srow"><div class="grow"><b>${h(CT.startLog)}</b><small class="muted">${h(CT.startLogHelp)}</small></div><button class="sm" data-act="startlog">${h(CT.show)}</button></div>
+      <pre id="startlog" class="startlog" hidden></pre>
       ${SET.cfgSchema.map((sec) => `<h3 class="sec">${h(sec.title)}</h3>${sec.items.map(fieldHTML).join("")}`).join("")}
       <div class="cfg-foot"><span class="note">${h(changed ? CT.changed(changed) : CT.none)}</span>
         ${changed ? `<button class="sm danger ${cfgArmed ? "armed" : ""}" data-act="cfgall">${h(cfgArmed ? CT.confirmReset : CT.resetAll)}</button>` : ""}</div>
@@ -2004,6 +2162,11 @@ function pageMain() {
       cfgArmed = true; renderCfg(); setTimeout(() => { if (cfgArmed) { cfgArmed = false; renderCfg(); } }, 3500); return;
     }
     if (act === "ai-open") return window.__aiOpen();
+    if (act === "startlog") {   // Settings › Updates › Start-up log (recipe · safe-startup)
+      const pre = document.getElementById("startlog");
+      if (!pre.hidden) { pre.hidden = true; t.textContent = CT.show; return; }
+      return call("startlog", {}, 30000).then((txt) => { pre.textContent = txt || CT.nothingLogged; pre.hidden = false; t.textContent = CT.hide; }, () => {});
+    }
     if (act === "openurl") return call("openurl", { v }).catch(() => {});
     if (act === "updcheck") {
       const um = document.getElementById("updmsg"); t.disabled = true; if (um) um.textContent = CT.checking;
@@ -2382,14 +2545,53 @@ const SPLASH_JS = '(function () {' +
   '  setTimeout(gone, 2900);' +               // out of the page once the CSS fade is done
   '})();';
 
-function buildHTML(data) {
-  const payload = { ...data, lang: LANG(), version: VERSION, look: lookState(), logo: LOGO_PARTS };
-  const look = lookState();
+// What the start-up placeholder and its notes say (recipe · safe-startup), in the app's language.
+const BOOT_TEXT = () => (LANG() === "lt"
+  ? { loading: "Įkeliamas dienynas…", still: "Vis dar įkeliama…", failed: "Dienynas+ nepavyko atidaryti",
+      again: "Uždarykite Dienynas+ ir atidarykite iš naujo. Jei tai kartojasi, dar kartą paleiskite diegimo skriptą.",
+      missing: "Kai kurių nustatymų ar duomenų nepavyko nuskaityti. Kol iš naujo neatidarysite Dienynas+, jie nebus perrašyti." }
+  : { loading: "Loading your diary…", still: "Still loading…", failed: "Dienynas+ couldn't open",
+      again: "Close Dienynas+ and open it again. If it keeps happening, run the installer once more.",
+      missing: "Some of your settings or data couldn't be read. Nothing will be saved over them until you reopen Dienynas+." });
+
+// The page shell. It never contains the diary: the page goes on screen first, shows "Loading your diary…",
+// receives the chat in pieces (window.__parts), then window.__boot(state) starts it (recipe · safe-startup).
+// It may read settings (look, language), which are loaded before every branch.
+function buildHTML() {
+  const look = lookState(), B = BOOT_TEXT();
   return `<!doctype html><html data-theme="${look.shown}" data-font="${look.font}" style="--ts:${look.textSize}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>${CSS}</style>${NO_ZOOM}</head><body class="d-${look.density}">
-${splashHTML()}<div id="app"></div><div class="scrim"></div><div class="sheet" id="sheet"></div>
-<script>${SPLASH_JS}window.DATA=${safeJSON(payload)};(${pageMain.toString()})();</script>
+${splashHTML()}<div id="app"><div class="booting" role="status"><span class="busy-dot"></span>${B.loading}</div></div><div class="scrim"></div><div class="sheet" id="sheet"></div>
+<script>${SPLASH_JS}
+// The page goes on screen first; Scriptable hands over the data once it has read it.
+window.__parts = [];
+window.__bootNote = function (title, detail) {
+  var b = document.querySelector(".booting"); if (!b) return;
+  b.className = "booting note";
+  b.innerHTML = "<b></b><span></span>" + (detail ? "<pre></pre>" : "");
+  b.querySelector("b").textContent = title;
+  b.querySelector("span").textContent = ${safeJSON(B.again)};
+  if (detail) b.querySelector("pre").textContent = detail;
+};
+setTimeout(function () { if (!window.__booted) window.__bootNote(${safeJSON(B.still)}); }, 25000);
+document.addEventListener("visibilitychange", function () {   // coming back into view: redraw
+  if (document.visibilityState !== "visible") return;
+  var d = document.documentElement; d.style.transform = "translateZ(0)"; void d.offsetHeight; d.style.transform = "";
+});
+window.__boot = function (st) {
+  if (window.__booted) return;
+  window.__booted = true;
+  if (!st) return;   // Dienynas+: no diary saved yet; the placeholder stays until TAMO answers and the page is built again
+  if (!st.chat || !st.chat.length) st.chat = [].concat.apply([], window.__parts);
+  window.__parts = [];
+  window.DATA = st;
+  requestAnimationFrame(function () {   // make WebKit draw again once the data is in (helps if the window came up blank)
+    var d = document.documentElement; d.style.transform = "translateZ(0)"; void d.offsetHeight;
+    requestAnimationFrame(function () { d.style.transform = ""; });
+  });
+  (${pageMain.toString()})();
+};</script>
 </body></html>`;
 }
 
@@ -2424,6 +2626,7 @@ function aiLoad(name, fallback) {
   return fallback;
 }
 function aiWrite(name, data) {
+  if (name === "usage" && !dataLoaded) return;   // usage is read in loadData(): never save over a file that wasn't read
   try { aiFm.writeString(aiPath(name), JSON.stringify(data)); } catch (e) { console.log("AI: couldn't save " + name + ": " + e); }
 }
 const aiSettings = Object.assign({
@@ -2510,7 +2713,7 @@ function parseJSON(txt) {
 }
 
 // Token usage, counted from what the provider reports, per provider, model, feature and local day.
-let usage = aiLoad("usage", { since: Date.now(), p: {} });
+let usage = { since: Date.now(), p: {} };   // read in loadData()
 const aiDayKey = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -2565,6 +2768,7 @@ async function aiAction(head, m) {
       break;
     case "airm": removeKey(P); msg = `${PROVIDERS[P]} key removed`;
       if (!aiKey()) { const other = Object.keys(PROVIDERS).find(p => keyFor(p)); if (other) aiSettings.aiProvider = other; }
+      aiInviteKeyRemoved();   // the last key gone: invite again from the next launch (after the switch, so another key still counts)
       break;
     case "aiprov": if (PROVIDERS[m.v] && keyFor(m.v)) aiSettings.aiProvider = m.v; break;
     case "aimodels":
@@ -2608,6 +2812,39 @@ function aiStatusLine() {
 }
 const aiFmtN = n => n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "k" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n);
 // ─────────────── end of AI configuration ───────────────
+
+// ── AI invitation (app-blueprints · ai-invitation): when it may appear ──
+// Its state lives in settings.json as settings.aiInvite (no UI of its own). saveSettings() is this app's saveAll().
+const INVITE_DAY = 864e5;
+const INVITE_GAP = 3;          // days between invitations (about twice a week)
+const INVITE_GAP_SLOW = 7;     // days between invitations after the 4th "Later"
+function aiInviteDue(now = Date.now()) {
+  const s = settings.aiInvite || (settings.aiInvite = {});
+  if (aiKey()) return false;   // a key means AI is on: nothing to invite to
+  if (s.off) return false;     // "Don't remind me again"
+  return now >= (s.next || 0); // from the very first launch (right after install), then at most every 3 days
+}
+// Removing the last key turns AI off: invite again from the next launch (called in the "airm" action).
+function aiInviteKeyRemoved() {
+  if (aiKey()) return;
+  const s = settings.aiInvite || (settings.aiInvite = {});
+  s.next = 0; saveSettings();
+}
+// The page reports what happened: "shown", "open", "later" or "never".
+function aiInviteNote(what, now = Date.now()) {
+  const s = settings.aiInvite || (settings.aiInvite = {});
+  if (what === "shown") { s.shown = (s.shown || 0) + 1; s.next = now + INVITE_GAP * INVITE_DAY; }
+  else if (what === "later") { s.later = (s.later || 0) + 1; s.next = now + (s.later >= 4 ? INVITE_GAP_SLOW : INVITE_GAP) * INVITE_DAY; }
+  else if (what === "never") s.off = true;
+  else return;   // "open": the AI sheet takes over; "shown" already set the next date
+  saveSettings();
+}
+// One offer per launch, and an update wins: called once the update check (and TAMO's first answer) has settled.
+// ev() is this app's js(); the card's words follow the app language.
+function inviteIfDue() {
+  if (!app || app.pendingUpdate || app.updateOffered || !aiInviteDue()) return;
+  ev(`window.__aiInvite && window.__aiInvite(${safeJSON(LANG() === "lt" ? AI_INVITE.lt : AI_INVITE)})`).catch(() => {});
+}
 
 // ───────────────────────────── ✨ Ask: chat over everything TAMO has (through aiCall) ─────────────────────────────
 
@@ -3068,7 +3305,7 @@ async function runCheck() {
   const body = newsText(news);
   Script.setShortcutOutput(`${T.title(news.total)}\n\n${body}`);
   if (!inApp) return notify(`${T.title(news.total)}${data.child.title ? ` · ${data.child.title}` : ""}`, body);
-  if (await showNewsAlert(news, data, true)) await new App().start(data);
+  if (await showNewsAlert(news, data, true)) await main(data);
 }
 
 // ───────────────────────────── ⬆️ in-app updates (releases.json on GitHub) ─────────────────────────────
@@ -3162,11 +3399,13 @@ class App {
     this.msgBodies = {}; // bodies of messages opened in this session, for Ask
     this.pendingUpdate = null; // newer version found on GitHub, offered until answered
     this.updateChecked = false;
+    this.updateOffered = false; // an update sheet was offered this launch (then no AI invitation)
     this.settingsEffect = ""; // what closing Settings must do: "" or "render"
   }
 
   offerUpdate() {
     if (!this.pendingUpdate) return;
+    this.updateOffered = true;   // one offer per launch: no AI invitation after an update was offered
     this.wv.evaluateJavaScript(`window.__showUpdate && window.__showUpdate(${safeJSON(this.pendingUpdate)})`, false).catch(() => {});
   }
 
@@ -3178,9 +3417,10 @@ class App {
     return this.chatState;
   }
 
-  page(data, extra = {}) {
+  // What the page boots from. Handed over after the page is on screen; buildHTML() never inlines it.
+  clientState(data, extra = {}) {
     const chat = this.chatFor(data);
-    return buildHTML({
+    return {
       ...data,
       chat: chat.history.map((m) => ({ role: m.role, text: m.text, by: m.by })),
       chatInfo: packInfo(chat.pack),
@@ -3188,7 +3428,14 @@ class App {
       hasAiKey: !!aiKey(),
       update: this.pendingUpdate, // re-offered after every reload of the main page, until answered
       ...extra,
-    });
+      lang: LANG(), version: VERSION, look: lookState(), logo: LOGO_PARTS,
+    };
+  }
+
+  // Every later page load (fresh data, language, grade scale): the page shell first, then its data (recipe · safe-startup).
+  async show(data, extra = {}) {
+    await Promise.race([this.wv.loadHTML(buildHTML()), pause(15000)]);
+    await handOver(this.clientState(data, extra));
   }
 
   async progress(stage) {
@@ -3209,25 +3456,6 @@ class App {
     return chat;
   }
 
-  // `fresh` is data a check run just loaded: show it straight away without loading again.
-  async start(fresh = null) {
-    this.wv.shouldAllowRequest = (req) => this.route(req);
-    const cached = fresh || readCache();
-    this.data = cached;
-    await this.wv.loadHTML(cached ? this.page(cached, { warnings: [] }) : messageHTML(APP_NAME, LANG() === "lt" ? "Įkeliama…" : "Loading…"));
-    const shown = this.wv.present(true);
-    // Once per run, after the first screen has rendered, so it never slows the start.
-    if (!this.updateChecked) {
-      this.updateChecked = true;
-      checkForUpdate().then((u) => {
-        this.pendingUpdate = u;
-        this.offerUpdate();
-      });
-    }
-    if (!fresh) await this.reload(true);
-    await shown;
-  }
-
   route(req) {
     const url = String(req.url || "");
     if (url.startsWith("tamo://")) {
@@ -3244,19 +3472,22 @@ class App {
   async reload(announce = false) {
     if (this.busy) return;
     this.busy = true;
+    const t0 = Date.now();
     try {
       const data = await loadAll(this.api);
       saveCache(data);
       saveWidget(widgetSnapshot(data));   // what the Home Screen widget shows: lesson times, counts, no grades or message text
       this.data = data;
+      startLog(`TAMO answered in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
       await afterSplash();   // the launch screen plays out over the cached diary first
-      await this.wv.loadHTML(this.page(data));
+      await this.show(data);
       // pop up anything new since the last run (scheduled check or app launch)
       if (announce) {
         const news = findNews(data);
         if (news.total) await showNewsAlert(news, data, false);
       }
     } catch (e) {
+      startLog(`TAMO didn't answer after ${((Date.now() - t0) / 1000).toFixed(1)} s${e && e.badLogin ? " (sign-in refused)" : ""}`);   // no error text: it could name a child or a server detail
       await afterSplash();
       if (e && e.badLogin) {
         await this.wv.loadHTML(
@@ -3271,7 +3502,7 @@ class App {
         if (cached) {
           const stamp = `${at.getDate()}.${String(at.getMonth() + 1).padStart(2, "0")} ${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
           this.data = this.data || cached;
-          await this.wv.loadHTML(this.page(cached, { warnings: [], stale: { at: stamp, error: e.message || String(e) } }));
+          await this.show(cached, { warnings: [], stale: { at: stamp, error: e.message || String(e) } });
         } else {
           await this.wv.loadHTML(messageHTML(APP_NAME, e.message || String(e), [{ label: t("tryAgain"), action: "refresh" }]));
         }
@@ -3351,7 +3582,7 @@ class App {
         case "scale": {
           const data = this.data || readCache();
           await this.reply(q.id, true, {});
-          if (data && (await pickGradeScale(data.child.key, data.child.title))) await this.wv.loadHTML(this.page(data, { warnings: [], startTab: params.tab }));
+          if (data && (await pickGradeScale(data.child.key, data.child.title))) await this.show(data, { warnings: [], startTab: params.tab });
           return;
         }
         case "clearchat": {
@@ -3401,7 +3632,7 @@ class App {
           this.settingsEffect = "";
           await this.reply(q.id, true, {});
           const cur = this.data || readCache();
-          if (effect && cur) await this.wv.loadHTML(this.page(cur, { warnings: [] }));
+          if (effect && cur) await this.show(cur, { warnings: [] });
           return;
         }
         case "update-check": {   // Settings › Check for updates now: clears "Later" and checks at once
@@ -3412,6 +3643,14 @@ class App {
           await this.reply(q.id, true, { available: !!u, msg: u ? (lt ? `Yra versija ${u.latest}` : `Version ${u.latest} is available`) : (lt ? `Naudojate naujausią versiją (${VERSION})` : `You're on the latest version (${VERSION})`) });
           if (u) { this.pendingUpdate = u; this.offerUpdate(); }
           return;
+        }
+        case "aiinvite":   // AI invitation: shown, open, later or never
+          aiInviteNote(params.v);
+          return this.reply(q.id, true, {});
+        case "startlog": {   // Settings › Updates › Start-up log (recipe · safe-startup)
+          let txt = "";
+          try { txt = FileManager.local().readString(LOG_PATH).split("\n").slice(-40).join("\n"); } catch (e) {}
+          return this.reply(q.id, true, txt);
         }
         case "openurl":   // Built with: only the blueprints repository opens from here
           if (params.v === BLUEPRINTS_REPO || String(params.v).startsWith(BLUEPRINTS_REPO + "/")) await Safari.openInApp(params.v, false);
@@ -3716,25 +3955,112 @@ async function runWidget() {
 }
 // ───────── end of Widget ─────────
 
-// ───────────────────────────── entry ─────────────────────────────
-
-// The app and the Shortcuts check; widget runs never come here (see the branch below).
-async function main() {
-  aiMigrate(["dienynasplus.openai-key"]);   // 1.4.x kept one OpenAI key under another name
-  if (isCheckRun()) return runCheck();
-  if (!Keychain.contains(K.user) || !Keychain.contains(K.pass)) {
-    if (!(await askCredentials())) return;
-  }
-  await new App().start();
+// ───────────────────────────── run (app-blueprints · recipes/safe-startup) ─────────────────────────────
+// A run marks itself as open while its window is on screen. A new run waits at most 1.5 s for an older
+// window to close, then opens anyway: quick taps on the widget don't stack up copies.
+const lockFm = FileManager.local();
+const RUN_LOCK = lockFm.joinPath(lockFm.temporaryDirectory(), APP_ID + '-running');
+let lockTimer = null;
+const lockAge = () => { try { return lockFm.fileExists(RUN_LOCK) ? Date.now() - Number(lockFm.readString(RUN_LOCK)) : Infinity; } catch (e) { return Infinity; } };
+const pause = ms => new Promise(r => Timer.schedule(ms, false, r));
+async function waitForOtherWindow() { for (let waited = 0; lockAge() < 2500 && waited < 1500; waited += 300) await pause(300); }
+function holdLock() {
+  const beat = () => { try { lockFm.writeString(RUN_LOCK, String(Date.now())); } catch (e) {} };
+  beat(); lockTimer = Timer.schedule(1000, true, beat);
 }
+function releaseLock() {
+  if (lockTimer) { lockTimer.invalidate(); lockTimer = null; }
+  try { if (lockFm.fileExists(RUN_LOCK)) lockFm.remove(RUN_LOCK); } catch (e) {}
+}
+let app = null;   // this run's App (its bridge, TAMO session and update offer)
+let wv = null;    // its window (app.wv)
+// Talks to the page with a time limit, so a stuck page can't stall the app.
+const ev = (js, ms = 20000) => Promise.race([wv.evaluateJavaScript(js, false), pause(ms).then(() => { throw new Error("the page didn't respond in " + ms / 1000 + " s"); })]);
+
+// Hands the page its state: the chat (the list that grows with use) in pieces, then the rest with __boot.
+async function handOver(st) {
+  const list = st.chat || [];
+  st.chat = [];
+  for (let i = 0; i < list.length; i += 20) await ev(`window.__parts.push(${safeJSON(list.slice(i, i + 20))})`);   // in pieces: one huge message can stall WebKit
+  await ev(`window.__boot(${safeJSON(st)})`);
+}
+
+// `fresh` is data a Shortcuts check just loaded: show it straight away without asking TAMO again.
+async function bootApp(fresh, isClosed) {
+  const t0 = Date.now();
+  startLog(`Dienynas+ ${VERSION}: reading data`);
+  await loadData();
+  const data = fresh || diaryCache, at = data && new Date(data.at);
+  startLog(`data read in ${((Date.now() - t0) / 1000).toFixed(1)} s: ${data ? `diary from ${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}` : "no diary saved yet"}${loadIssues.length ? "; missing: " + loadIssues.join(", ") : ""}`);
+  if (isClosed()) return;
+  app.data = data;
+  if (data) await handOver(app.clientState(data, { warnings: [] }));
+  else await ev(`window.__boot(null)`);   // nothing saved yet: "Loading your diary…" stays until TAMO answers
+  let seen = "";
+  try { seen = await ev(`document.visibilityState + ", " + innerWidth + "x" + innerHeight`, 5000); } catch (e) { seen = String(e.message || e); }
+  startLog(`screen ready in ${((Date.now() - t0) / 1000).toFixed(1)} s (page: ${seen})`);
+  if (loadIssues.length || !settingsOk) ev(`window.__aiToast && window.__aiToast(${safeJSON(BOOT_TEXT().missing)})`).catch(() => {});
+  // Deferred work, once the first screen is drawn: today's diary from TAMO, then updates (and the AI invitation), then the widget's icon.
+  let refreshed = Promise.resolve();
+  Timer.schedule(700, false, () => {
+    if (isClosed() || fresh) return;
+    refreshed = app.reload(true).catch(() => {});   // writes only TAMO's own data (cache, widget snapshot), never a file that wasn't read
+  });
+  Timer.schedule(3500, false, () => {
+    if (isClosed() || app.updateChecked) return;
+    app.updateChecked = true;
+    checkForUpdate().then((u) => { app.pendingUpdate = u; app.offerUpdate(); }).catch(() => {})
+      .then(() => refreshed).then(() => { if (!isClosed()) inviteIfDue(); });   // AI invitation: after the update check and TAMO's answer (a new page would drop the card), never with an offer
+  });
+  Timer.schedule(6000, false, () => { widgetIcon(); });
+}
+
+// The app, and the Shortcuts check's "Open". Widget runs never come here (see the branch below).
+async function main(fresh = null) {
+  if (!Keychain.contains(K.user) || !Keychain.contains(K.pass)) {
+    if (!(await askCredentials())) return;   // a native prompt, before the window: nothing to show without sign-in details
+  }
+  await waitForOtherWindow();
+  app = new App();
+  wv = app.wv;
+  wv.shouldAllowRequest = (req) => app.route(req);
+  // A page built before its window is on screen can stay blank on some iPhones (the page runs, nothing is drawn),
+  // most often when opened from the widget. So: an empty dark window first, then the real page built inside it.
+  await wv.loadHTML('<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;background:#0E1116"></body></html>');
+  const presented = wv.present(true);
+  holdLock();
+  await pause(300);                          // let the window finish appearing
+  startLog("window on screen");
+  await Promise.race([wv.loadHTML(buildHTML()), pause(15000)]);   // the launch screen, drawn on screen
+  let closed = false;
+  presented.then(() => { closed = true; releaseLock(); });
+  bootApp(fresh, () => closed).catch((e) => {   // runs beside the window: closing it never waits on this
+    startLog("start-up failed: " + (e.message || e));
+    let log = "";
+    try { log = FileManager.local().readString(LOG_PATH).split("\n").slice(-12).join("\n"); } catch (x) {}
+    if (!closed) wv.evaluateJavaScript(`window.__bootNote(${safeJSON(BOOT_TEXT().failed)}, ${safeJSON(log)})`, false).catch(() => {});
+  });
+  await presented;
+  closed = true;
+  releaseLock();
+  // Nothing to save on close: settings and AI files are saved at every change, the diary and the widget snapshot after every TAMO answer.
+}
+
+// ───────────────────────────── entry ─────────────────────────────
 
 if (!globalThis.__DIENYNAS_TEST__) {
   await loadSettings();   // before every branch: app, widget and Shortcuts runs all use the saved choices
   if (config.runsInWidget || config.runsInAccessoryWidget) {
+    await loadData();              // the widget reads its own data
     await runWidget();             // never builds or presents a WebView, Alert or QuickLook
   } else {
-    widgetIcon();                  // caches the logo tile for the widget, in the background
-    await main();
+    aiMigrate(["dienynasplus.openai-key"]);   // 1.4.x kept one OpenAI key under another name (widget runs migrate nothing)
+    if (isCheckRun()) {            // Shortcuts: "check" looks for news; its "Open" opens the app through main()
+      widgetIcon();                // caches the logo tile for the widget, in the background
+      await runCheck();
+    } else {
+      await main();
+    }
   }
   Script.complete();
 }
