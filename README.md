@@ -68,35 +68,27 @@ A faster, cleaner way to follow your child's school day in the TAMO dienynas, th
 ## Install
 
 1. Get **[Scriptable](https://apps.apple.com/app/scriptable/id1405459188)** (free) on your iPhone or iPad.
-2. In Scriptable, tap **+**, paste the installer below and tap ▶︎. It downloads the latest Dienynas into Scriptable.
+2. In Scriptable, tap **+**, paste these two lines, name the script *Dienynas Installer*, and tap **▶**:
+   ```js
+   const code = await new Request("https://raw.githubusercontent.com/gadominas/Tamo-/master/install.js").loadString();
+   await eval("(async () => {" + code + "\n})()");
+   ```
 3. Tap **Open Dienynas** and sign in with your TAMO username and password. They're kept in the iOS Keychain.
 
-```js
-const req = new Request("https://raw.githubusercontent.com/gadominas/Tamo-/master/Dienynas.js");
-const code = await req.loadString();
-if (req.response.statusCode !== 200 || !code.includes("Dienynas+")) throw new Error("Download failed, try again");
-let fm = FileManager.local();
-try { const ic = FileManager.iCloud(); if (ic.fileExists(ic.joinPath(ic.documentsDirectory(), Script.name() + ".js"))) fm = ic; } catch (e) {}
-fm.writeString(fm.joinPath(fm.documentsDirectory(), "Dienynas.js"), code);
-Safari.open("scriptable:///run/Dienynas");
-```
-
-The app offers new versions itself ([details](#updates-and-whats-new)). You can also run the installer again any time; sign-in, settings and chat history are kept. The same installer with friendlier messages is in [`install.js`](install.js).
+To update, tap **Update now** when Dienynas offers a new version, or run *Dienynas Installer* again. Your sign-in, settings and chat history are kept.
 
 <details>
 <summary><b>Install by hand</b></summary>
 
-1. Open [`Dienynas.js`](Dienynas.js) and copy all of it.
-2. In Scriptable, tap **+**, paste it, and name the script **Dienynas** (tap the title at the top).
-3. Tap ▶︎ and sign in with your TAMO username and password.
+Rather not use the loader? Paste [`install.js`](install.js) or [`Dienynas.js`](Dienynas.js) into a new script in Scriptable yourself.
 
 </details>
 
-You need:
+What else you need:
 
-- a TAMO parent or pupil login;
-- for ✨ Ask, a [Claude](https://console.anthropic.com/settings/keys) or [OpenAI](https://platform.openai.com/api-keys) API key, added in **Settings › AI settings** (optional);
-- for 🔔 new-items alerts, a Shortcuts automation running **Dienynas** with the parameter `check` ([setup](#-scheduled-checks-get-told-about-anything-new), optional).
+- **A TAMO parent or pupil login.**
+- **For ✨ Ask (optional):** a [Claude](https://console.anthropic.com/settings/keys) or [OpenAI](https://platform.openai.com/api-keys) API key, added in **Settings › AI settings**.
+- **For 🔔 new-items alerts (optional):** a Shortcuts automation running **Dienynas** with the parameter `check` ([setup](#-scheduled-checks-get-told-about-anything-new)).
 
 ## How to use it
 
