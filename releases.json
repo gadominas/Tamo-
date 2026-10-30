@@ -4,6 +4,55 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.9.0",
+      "date": "2026-10-30",
+      "title": "Opens every time",
+      "highlights": [
+        {
+          "icon": "🚀",
+          "title": "Opens every time",
+          "text": "Opening from the widget, with quick taps or slow iCloud no longer leaves a blank screen.",
+          "lt": {
+            "title": "Atsidaro kiekvieną kartą",
+            "text": "Atidarant iš valdiklio, greitai spaudžiant ar esant lėtam iCloud nebelieka tuščio ekrano."
+          }
+        },
+        {
+          "icon": "✦",
+          "title": "Meet Ask",
+          "text": "Without an AI key, a short card now and then shows what ✨ Ask can do and leads to AI settings.",
+          "lt": {
+            "title": "Susipažinkite su „Klausk“",
+            "text": "Be DI rakto kartais pasirodo trumpa kortelė: ką moka ✨ „Klausk“, ir kelias į AI nustatymus."
+          }
+        },
+        {
+          "icon": "🧾",
+          "title": "A start-up log",
+          "text": "Settings › Updates › Start-up log shows what happened the last times the app opened.",
+          "lt": {
+            "title": "Paleidimo žurnalas",
+            "text": "Nustatymai › Atnaujinimai › Paleidimo žurnalas rodo, kas vyko paskutinius kartus atidarant programą."
+          }
+        }
+      ],
+      "changes": [
+        "Safe start-up (app-blueprints · recipes/safe-startup 1.0.0): the app shows an empty dark window first, then the launch screen and a \"Loading your diary…\" placeholder inside it, and only then reads the saved diary and hands it to the page",
+        "Only settings are read before the window, and an iCloud read gives up after 10 s instead of waiting for ever; settings and AI token usage that couldn't be read are never saved over",
+        "Every page load (fresh data from TAMO, a new language or grade scale) gets its data after the page is on screen, the Ask conversation in pieces, each step with a time limit",
+        "One window at a time: quick taps on the widget open one window, and a new run never waits more than 1.5 s for an older one",
+        "TAMO is asked 0.7 s after the first screen, the update check runs at 3.5 s and the widget icon is fetched at 6 s, so none of them competes with the first frame",
+        "A short start-up log is kept on this iPhone (timings only: no names, school data or sign-in details) and shown in Settings › Updates › Start-up log; a start-up that stalls for 25 s or fails says so on screen",
+        "AI invitation (app-blueprints · ai-invitation 1.2.0): without an AI key, a card names three things ✨ Ask does (ask anything about the school week, what's due tomorrow and what to pack, teachers' messages summed up), in English or Lithuanian; Turn on AI opens AI settings with Add key highlighted",
+        "The invitation appears at most every 3 days (weekly after the fourth Later), never over the launch screen, a sheet or a message, never on a launch that offers an update, and Don't remind me again ends it; removing the last key invites again from the next launch",
+        "Settings › Built with lists AI invitation 1.2.0; docs/BLUEPRINTS.md records the safe-startup recipe"
+      ],
+      "fixes": [
+        "A blank screen when opening Dienynas+ from its widget, after several quick taps, or with iCloud slow or offline",
+        "With iCloud slow or offline, opening the app could save default settings over the saved ones (an unread settings file looked like a first run)"
+      ]
+    },
+    {
       "version": "1.8.0",
       "date": "2026-10-29",
       "title": "Today at a glance",
