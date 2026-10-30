@@ -4,6 +4,46 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.11.0",
+      "date": "2026-10-31",
+      "title": "Anonymous usage, if you agree",
+      "highlights": [
+        {
+          "icon": "📊",
+          "title": "Help shape Dienynas+",
+          "text": "If you agree, Dienynas+ sends anonymous counts of the features you use. Nothing else.",
+          "lt": {
+            "title": "Padėkite tobulinti Dienynas+",
+            "text": "Jei sutiksite, Dienynas+ siųs anoniminius naudojamų funkcijų skaičius. Nieko daugiau."
+          }
+        },
+        {
+          "icon": "🔒",
+          "title": "Anonymous by design",
+          "text": "A random ID made on your phone, never your content, names or accounts.",
+          "lt": {
+            "title": "Anonimiška iš principo",
+            "text": "Atsitiktinis telefone sukurtas ID, niekada jūsų turinys, vardai ar paskyros."
+          }
+        },
+        {
+          "icon": "🎛️",
+          "title": "Your choice, any time",
+          "text": "Settings › Privacy turns it on or off, and Send test shows what happened.",
+          "lt": {
+            "title": "Jūsų pasirinkimas bet kada",
+            "text": "Nustatymai › Privatumas įjungia arba išjungia, o „Siųsti bandymą“ parodo rezultatą."
+          }
+        }
+      ],
+      "changes": [
+        "Anonymous usage analytics (app-blueprints · usage-analytics 1.1.0): opt-in, anonymous counts to PostHog's US cloud, with a one-time question and Settings › Privacy (switch and Send test)",
+        "Events: app_open (layout, theme, ai_key, language), tab_viewed (tab), data_refreshed, message_opened, file_opened, ask_answered (provider), child_switched, app_updated",
+        "Never sent: grades, subjects, messages, names, questions or answers, files or your TAMO account"
+      ],
+      "fixes": []
+    },
+    {
       "version": "1.10.0",
       "date": "2026-10-31",
       "title": "Clearer Settings",

@@ -2,6 +2,18 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.11.0 (2026-10-31): Anonymous usage, if you agree
+
+- 📊 **Help shape Dienynas+**: If you agree, Dienynas+ sends anonymous counts of the features you use. Nothing else.
+- 🔒 **Anonymous by design**: A random ID made on your phone, never your content, names or accounts.
+- 🎛️ **Your choice, any time**: Settings › Privacy turns it on or off, and Send test shows what happened.
+
+**Changes**
+
+- Anonymous usage analytics (app-blueprints · usage-analytics 1.1.0): opt-in, anonymous counts to PostHog's US cloud, with a one-time question and Settings › Privacy (switch and Send test)
+- Events: app_open (layout, theme, ai_key, language), tab_viewed (tab), data_refreshed, message_opened, file_opened, ask_answered (provider), child_switched, app_updated
+- Never sent: grades, subjects, messages, names, questions or answers, files or your TAMO account
+
 ## 1.10.0 (2026-10-31): Clearer Settings
 
 - 🗂️ **Sections you can see**: Each Settings section now sits in its own card, so you can tell where it starts and ends.
