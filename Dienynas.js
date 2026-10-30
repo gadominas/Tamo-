@@ -30,12 +30,21 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.10.0';
+const VERSION = '1.11.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
 const UPDATE_SNOOZE_MS = 2 * 24 * 3600 * 1000;   // "Later" = 2 days
 const KC_UPDATE_SNOOZE = 'dienynasplus-update-snooze';   // Keychain key, unique per app
+
+// ── Anonymous usage counts (opt-in), sent to PostHog (app-blueprints · usage-analytics) ──
+// Nothing is sent until KEY is filled in AND the person agrees. Each event carries a random install ID
+// (made on this iPhone, not linked to any account), the app version and counts: never names, grades, messages,
+// IDs from TAMO, text or anything the app read. Events are anonymous (no person profiles).
+// The key is PostHog's project key, made to sit in public apps: it can only add events.
+// HOST must be the region the project lives in: PostHog's other region answers "accepted" and then drops the events.
+const USAGE = { HOST: 'https://us.i.posthog.com', KEY: 'phc_yAi2PxJCRioWEKLF3uockdCf3QvyQdNABivwqpE4NCWR' };   // the shared project
+const KC_INSTALL = 'dienynasplus-install-id';
 
 // ───────── Blueprints ─────────
 // Shared blueprints this app was built with (github.com/gadominas/app-blueprints). One line per blueprint, in this exact shape:
@@ -48,6 +57,7 @@ const BLUEPRINTS = [
   { id: 'launch-screen', name: 'Launch screen', version: '1.0.0', since: '1.7.0' },
   { id: 'widgets', name: 'Widgets', version: '1.0.0', since: '1.8.0' },
   { id: 'ai-invitation', name: 'AI invitation', version: '1.2.1', since: '1.9.0' },
+  { id: 'usage-analytics', name: 'Anonymous usage analytics', version: '1.1.0', since: '1.11.0' },
 ];
 
 const K = {
@@ -142,15 +152,66 @@ const write = (n, v) => {
 // Defaults first, saved choices on top (loadSettings runs before every branch: app, widget, Shortcuts check).
 const settings = {
   lang: "en", checkUpdates: true,   // offer new versions from GitHub (asks again 2 days after "Later")
+  shareUsage: false, usageAsked: false,  // anonymous usage counts: off until the person agrees
   theme: "auto", density: "comfortable", font: "sans", textSize: 1,
   gradeScales: {},   // top grade per child: { roleKey: 10 }
   cfg: {},
 };
 const saveSettings = () => write("settings", settings);
+let usageQueue = [], usageTimer = null;
+const usageAvailable = () => !!USAGE.KEY;
+const usageOn = () => usageAvailable() && !!settings.shareUsage;
+function installId() {
+  if (Keychain.contains(KC_INSTALL)) return Keychain.get(KC_INSTALL);
+  const id = UUID.string().toLowerCase();
+  Keychain.set(KC_INSTALL, id);
+  return id;
+}
+function track(event, props = {}) {
+  if (!usageOn()) return;
+  try {
+    usageQueue.push({ event, timestamp: new Date().toISOString(),
+      properties: Object.assign({ distinct_id: installId(), $process_person_profile: false, app: APP_ID, app_version: VERSION, $lib: APP_ID }, props) });
+    if (usageQueue.length >= 25) flushUsage();
+    else if (!usageTimer) usageTimer = Timer.schedule(3000, false, () => { usageTimer = null; flushUsage(); });
+  } catch (e) {}
+}
+let usageLast = null;   // { at, events, ok, status, host, error }: shown in Settings › Privacy
+async function postUsage(host, batch) {
+  const r = new Request(host + '/batch/');
+  r.method = 'POST'; r.timeoutInterval = 10; r.headers = { 'Content-Type': 'application/json' };
+  r.body = JSON.stringify({ api_key: USAGE.KEY, batch });
+  let body = '';
+  try { body = await r.loadString(); } catch (e) { return { ok: false, status: 0, host, error: String(e.message || e) }; }
+  const status = (r.response && r.response.statusCode) || 0;
+  return { ok: status >= 200 && status < 300, status, host, error: status >= 200 && status < 300 ? '' : String(body || '').slice(0, 200) };
+}
+// Sends what's queued in one request. Never slows the app; if it fails, those counts are gone (and the log says why).
+async function flushUsage() {
+  if (!usageQueue.length) return usageLast;
+  if (!usageOn()) { usageQueue = []; return usageLast; }
+  const batch = usageQueue.splice(0, usageQueue.length);
+  const res = await postUsage(USAGE.HOST, batch);
+  usageLast = Object.assign({ at: Date.now(), events: batch.length }, res);
+  try { startLog(`usage: ${batch.length} event${batch.length === 1 ? '' : 's'} → ${res.ok ? 'sent to ' + res.host.replace('https://', '') : 'not sent: ' + (res.status ? 'HTTP ' + res.status + ' ' : '') + res.error}`); } catch (e) {}
+  return usageLast;
+}
+function usageStatus() {
+  const u = usageLast;
+  if (!u) return '';
+  const t = new Date(u.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return u.ok ? `Last sent ${t}: ${u.events} event${u.events === 1 ? '' : 's'}, accepted (${u.host.replace('https://', '')})`
+              : `Last try ${t} failed: ${u.status ? 'HTTP ' + u.status + ' ' : ''}${u.error}`;
+}
+function setUsage(on) {
+  settings.shareUsage = !!on; settings.usageAsked = true; saveSettings();
+  if (on) track('usage_opt_in');
+  else { usageQueue = []; if (Keychain.contains(KC_INSTALL)) Keychain.remove(KC_INSTALL); }   // a fresh ID if switched on again
+}
 
 // Every key the page may change, with its check and what closing Settings must then do.
 const SET_KEYS = {
-  lang: [(v) => ["en", "lt"].includes(v), "render"], checkUpdates: ["bool", ""],
+  lang: [(v) => ["en", "lt"].includes(v), "render"], checkUpdates: ["bool", ""], shareUsage: ["bool", ""],
   theme: [(v) => v === "auto" || !!PALETTES[v], ""], density: [(v) => ["comfortable", "compact", "tiny"].includes(v), ""],
   font: [(v) => ["sans", "serif"].includes(v), ""], textSize: [(v) => [0.92, 1, 1.12, 1.25].includes(+v), ""],
 };
@@ -275,6 +336,7 @@ function settingsState(child, canSwitch) {
     palettes: PALETTES, version: VERSION, appName: APP_NAME,
     blueprints: BLUEPRINTS, blueprintsRepo: BLUEPRINTS_REPO,
     child: child ? { name: child.title, scale: gradeMaxFor(child.key) } : null, canSwitch: !!canSwitch,
+    usageAvailable: usageAvailable(), usageStatus: usageStatus(),
     hasKey: !!aiKey(), aiStatus: aiStatusLine(),
   };
 }
@@ -1358,6 +1420,12 @@ body.d-tiny .row.open .title{white-space:normal}
 body.d-tiny .row .pill{margin-top:0}
 body.d-tiny .lesson .when{display:inline;margin-left:6px}
 /* Settings sheet (scoped: the app already uses .seg, .sheet and .chip) */
+#usageask{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;margin:12px 0 4px}
+#usageask b{font-size:calc(16px * var(--ts))}
+#usageask p{margin:6px 0 12px;color:var(--muted);font-size:calc(14px * var(--ts));line-height:1.4}
+.uabtns{display:flex;gap:10px}
+.uabtns button{flex:1;min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--blue);color:var(--card);font-weight:700}
+.uabtns button.ghost{background:var(--card);color:var(--ink)}
 #cfgsheet{position:fixed;inset:0;z-index:50;background:var(--paper);color:var(--ink);transform:translateY(102%);visibility:hidden;transition:transform .28s ease,visibility 0s linear .28s;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;text-align:left}
 #cfgsheet.open{transform:none;visibility:visible;transition:transform .28s ease}
 #cfgsheet button{font:inherit;color:inherit;background:none;border:0;border-radius:0;padding:0;font-weight:inherit;cursor:pointer;text-align:inherit}
@@ -2069,7 +2137,8 @@ function pageMain() {
 
   // ── Settings (app-blueprints · settings): every change applies at once and is saved; Done closes ──
   const CT_ALL = {
-    en: { title: "Settings", done: "Done", hint: "Changes apply right away and are kept on this iPhone.", appearance: "Appearance", colours: "Colours", layout: "Layout", textSize: "Text size", font: "Headline font",
+    en: { privacy: "Privacy", share: "Share anonymous usage", shareHelp: "Counts like app opens, tabs viewed and Ask answers, with a random install ID. Never grades, messages, names or your TAMO account. Off removes the ID.", test: "Test the connection", testHelp: "Sends one test event now and shows PostHog’s answer.", testBtn: "Send test", sending: "Sending…",
+      title: "Settings", done: "Done", hint: "Changes apply right away and are kept on this iPhone.", appearance: "Appearance", colours: "Colours", layout: "Layout", textSize: "Text size", font: "Headline font",
       themes: { auto: "Auto", ink: "Ink", sepia: "Sepia", mint: "Mint", contrast: "Contrast", slate: "Slate", night: "Night" },
       layouts: ["Comfortable", "Compact", "Tiny"], sizes: ["Small", "Default", "Large", "Larger"], fonts: ["Sans serif", "Serif"],
       general: "General", language: "Language", languageHelp: "The app redraws in this language when you close Settings", grades: "Grades", scale: (n) => `Grade scale for ${n}`, scaleHelp: "Averages, bars and Ask use it", other: "Other…",
@@ -2080,7 +2149,8 @@ function pageMain() {
       reset: "Reset", original: "original", changed: (n) => `${n} setting${n === 1 ? "" : "s"} changed`, none: "All settings are at their original values", resetAll: "Reset all", confirmReset: "Confirm reset",
       builtWith: "Built with", builtHint: (a) => `${a} is built from shared blueprints that the other apps use too. Tap one to read how that part works.`, bp: (v, a, s) => `Blueprint ${v} · since ${a} ${s}`, all: "All blueprints",
       dec: "Decrease", inc: "Increase" },
-    lt: { title: "Nustatymai", done: "Baigti", hint: "Pakeitimai įsigalioja iš karto ir saugomi šiame iPhone.", appearance: "Išvaizda", colours: "Spalvos", layout: "Išdėstymas", textSize: "Teksto dydis", font: "Antraščių šriftas",
+    lt: { privacy: "Privatumas", share: "Siųsti anoniminę statistiką", shareHelp: "Skaičiai, pvz., programos atidarymai, peržiūrėti skirtukai ir „Klausk“ atsakymai, su atsitiktiniu įrenginio ID. Niekada pažymių, žinučių, vardų ar jūsų TAMO paskyros. Išjungus ID ištrinamas.", test: "Patikrinti ryšį", testHelp: "Dabar išsiunčia vieną bandomąjį įvykį ir parodo PostHog atsakymą.", testBtn: "Siųsti bandymą", sending: "Siunčiama…",
+      title: "Nustatymai", done: "Baigti", hint: "Pakeitimai įsigalioja iš karto ir saugomi šiame iPhone.", appearance: "Išvaizda", colours: "Spalvos", layout: "Išdėstymas", textSize: "Teksto dydis", font: "Antraščių šriftas",
       themes: { auto: "Automatiškai", ink: "Rašalas", sepia: "Sepija", mint: "Mėtinė", contrast: "Kontrastas", slate: "Skalūnas", night: "Naktis" },
       layouts: ["Erdvus", "Glaustas", "Mažytis"], sizes: ["Mažas", "Įprastas", "Didelis", "Didesnis"], fonts: ["Be serifų", "Su serifais"],
       general: "Bendra", language: "Kalba", languageHelp: "Uždarius nustatymus programa persipieš šia kalba", grades: "Pažymiai", scale: (n) => `Vertinimo skalė: ${n}`, scaleHelp: "Ja remiasi vidurkiai, juostos ir „Klausk“", other: "Kita…",
@@ -2181,6 +2251,9 @@ function pageMain() {
       <div class="srow"><div class="grow"><b>${h(CT.aiRow)}</b><small id="s-aistatus">${h(SET.hasKey ? SET.aiStatus : CT.aiNone)}</small></div><button class="sm" data-act="ai-open">${h(CT.aiBtn)}</button></div>
       <h3 class="sec">${h(CT.account)}</h3>
       ${SET.canSwitch ? actRow("switchChild", CT.switchChild) : ""}${actRow("web", CT.web)}${actRow("login", CT.login)}${actRow("signout", CT.signout, CT.signoutHelp, true)}
+      ${SET.usageAvailable ? `<h3 class="sec">${h(CT.privacy)}</h3>
+      ${swRow("shareUsage", CT.share, CT.shareHelp)}
+      <div class="srow"><div class="grow"><b>${h(CT.test)}</b><small id="usagemsg" class="muted" aria-live="polite">${h(SET.usageStatus || CT.testHelp)}</small></div><button class="sm" data-act="usage-test">${h(CT.testBtn)}</button></div>` : ""}
       <h3 class="sec">${h(CT.updates)}</h3>
       ${swRow("checkUpdates", CT.offer, CT.offerHelp(SET.version))}
       <div class="srow"><div class="grow"><b>${h(CT.check)}</b><small id="updmsg" class="muted" aria-live="polite"></small></div><button class="sm" data-act="updcheck">${h(CT.checkBtn)}</button></div>
@@ -2221,6 +2294,10 @@ function pageMain() {
       return call("startlog", {}, 30000).then((txt) => { pre.textContent = txt || CT.nothingLogged; pre.hidden = false; t.textContent = CT.hide; }, () => {});
     }
     if (act === "openurl") return call("openurl", { v }).catch(() => {});
+    if (act === "usage-test") {
+      const um = document.getElementById("usagemsg"); t.disabled = true; if (um) um.textContent = CT.sending;
+      return call("usage-test", {}, 30000).then((r) => { t.disabled = false; const m = document.getElementById("usagemsg"); if (m) m.textContent = (r && r.ok ? "✓ " : "✗ ") + ((r && r.msg) || ""); }, () => { t.disabled = false; });
+    }
     if (act === "updcheck") {
       const um = document.getElementById("updmsg"); t.disabled = true; if (um) um.textContent = CT.checking;
       return call("update-check", {}, 30000).then((r) => { t.disabled = false; if (um) um.textContent = (r && r.msg) || ""; if (r && r.available) closeSettings(); }, (er) => { t.disabled = false; if (um) um.textContent = er.message; });
@@ -2433,7 +2510,10 @@ function pageMain() {
       .join("")}</nav>`;
     const t = new Date(D.at);
     const updated = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
-    $("#app").innerHTML = `${head}<main>${banners.join("")}${screens[S.tab]()}${S.tab === 5 ? "" : `<footer>${h(T.updated(updated))}<span class="ver">Dienynas+ v${h(D.version || "")}</span></footer>`}</main>${tabs}`;
+    // Anonymous usage (app-blueprints · usage-analytics): the one-time question, on Today
+    const lt = D.lang === "lt";
+    const usageAsk = D.usageAsk && S.tab === 0 ? `<section id="usageask" aria-label="${lt ? "Anoniminė statistika" : "Anonymous usage"}"><b>${lt ? "Padėti tobulinti Dienynas+?" : "Help improve Dienynas+?"}</b><p>${lt ? "Siųsti anoniminius skaičius, pvz., programos atidarymus, peržiūrėtus skirtukus ir „Klausk“ atsakymus. Niekada pažymių, žinučių, vardų ar jūsų TAMO paskyros. Tai galite pakeisti nustatymuose." : "Share anonymous counts, like app opens, tabs viewed and Ask answers. Never grades, messages, names or your TAMO account. You can change this in Settings."}</p><div class="uabtns"><button data-ua="1">${lt ? "Taip, siųsti" : "Yes, share"}</button><button class="ghost" data-ua="0">${lt ? "Ne, ačiū" : "No thanks"}</button></div></section>` : "";
+    $("#app").innerHTML = `${head}<main>${usageAsk}${banners.join("")}${screens[S.tab]()}${S.tab === 5 ? "" : `<footer>${h(T.updated(updated))}<span class="ver">Dienynas+ v${h(D.version || "")}</span></footer>`}</main>${tabs}`;
     if ($("#q") && draft) $("#q").value = draft;
   }
 
@@ -2477,8 +2557,16 @@ function pageMain() {
       el.textContent = prev;
       return;
     }
+    if (el.dataset.ua !== undefined) {   // the one-time usage question
+      call("usage-consent", { on: el.dataset.ua }).catch(() => {});
+      D.usageAsk = false; render();
+      const lt = D.lang === "lt";
+      (window.__aiToast || (() => {}))(el.dataset.ua === "1" ? (lt ? "Ačiū! Tai galite pakeisti nustatymuose bet kada." : "Thank you! Change it any time in Settings.") : (lt ? "Gerai. Niekas nesiunčiama." : "No problem. Nothing is shared."));
+      return;
+    }
     if (el.dataset.tab !== undefined) {
       S.tab = Number(el.dataset.tab);
+      call("usage-event", { e: "tab_viewed", tab: ["today", "schedule", "homework", "messages", "grades", "ask"][S.tab] || "other" }).catch(() => {});
       render();
       window.scrollTo(0, 0);
       if (S.tab === 5) {
@@ -3484,6 +3572,7 @@ class App {
       update: this.pendingUpdate, // re-offered after every reload of the main page, until answered
       ...extra,
       lang: LANG(), version: VERSION, look: lookState(), logo: LOGO_PARTS,
+      usageAsk: usageAvailable() && !settings.usageAsked && !settings.shareUsage,
     };
   }
 
@@ -3595,6 +3684,7 @@ class App {
           return this.reply(q.id, true, {});
         case "update-now": {
           const v = await applyUpdate(this.pendingUpdate);
+          track("app_updated", { from: VERSION, to: (String(v).match(/[0-9]+\.[0-9]+\.[0-9]+/) || [""])[0] }); flushUsage();
           this.pendingUpdate = null;
           clearUpdateSnooze();
           return this.reply(q.id, true, v);
@@ -3611,10 +3701,12 @@ class App {
           if (!id) throw new Error("bad message");
           const detail = mapMessageDetail(await this.api.modern(`messaging/messages/received/${type}/${id}`, {}, false));
           this.msgBodies[`${params.typeId || "1"}/${params.id}`] = detail.body;
+          track("message_opened");
           return this.reply(q.id, true, detail);
         }
         case "file": {
           await this.openFile(params);
+          track("file_opened");
           return this.reply(q.id, true, {});
         }
         case "prepare": {
@@ -3632,6 +3724,7 @@ class App {
           const at = Date.now();
           chat.history.push({ role: "user", text: question, at }, { role: "assistant", text: r.answer, by: r.by, at: Date.now() });
           saveChat(chat);
+          track("ask_answered", { provider: aiSettings.aiProvider });
           return this.reply(q.id, true, { answer: r.answer, by: r.by, info: packInfo(chat.pack) });
         }
         case "scale": {
@@ -3648,9 +3741,22 @@ class App {
           }
           return this.reply(q.id, true, {});
         }
+        case "usage-consent":
+          setUsage(params.on === "1"); flushUsage();
+          return this.reply(q.id, true, {});
+        case "usage-test": {
+          let ok = false, msg = "";
+          if (!usageOn()) msg = LANG() === "lt" ? "Pirmiausia įjunkite „Siųsti anoniminę statistiką“." : "Turn on Share anonymous usage first.";
+          else { track("usage_test"); const r = await flushUsage(); ok = !!(r && r.ok); msg = usageStatus() || (LANG() === "lt" ? "Nieko neišsiųsta." : "Nothing was sent."); }
+          return this.reply(q.id, true, { ok, msg });
+        }
+        case "usage-event":   // what happens on the page: only this event, with a fixed tab name
+          if (params.e === "tab_viewed") track("tab_viewed", { tab: ["today", "schedule", "homework", "messages", "grades", "ask"].includes(params.tab) ? params.tab : "other" });
+          return this.reply(q.id, true, {});
         case "refresh":
           await this.reply(q.id, true, {});
-          return this.reload();
+          await this.reload(); track("data_refreshed");
+          return;
         case "relogin":
           if (await askCredentials()) {
             forgetSession();
@@ -3664,7 +3770,9 @@ class App {
         case "scale-set":
         case "scale-other": {
           const cur = this.data || readCache();
-          if (action === "set") {
+          if (action === "set" && params.k === "shareUsage") {
+            setUsage(params.v === true || params.v === "true" || params.v === "1");   // off also deletes the install ID
+          } else if (action === "set") {
             const effect = setSetting(params.k, params.v);
             if (effect === null) throw new Error(LANG() === "lt" ? "Šio nustatymo čia pakeisti negalima." : "That setting can’t be changed here.");
             if (effect) this.settingsEffect = effect;
@@ -3737,6 +3845,7 @@ class App {
   // Account actions from Settings (they used to be the ••• menu).
   async account(act) {
     if (act === "switchChild") {
+      track("child_switched");
       if (Keychain.contains(K.role)) Keychain.remove(K.role);
       forgetSession();
       clearCache();
@@ -4054,6 +4163,7 @@ async function bootApp(fresh, isClosed) {
   let seen = "";
   try { seen = await ev(`document.visibilityState + ", " + innerWidth + "x" + innerHeight`, 5000); } catch (e) { seen = String(e.message || e); }
   startLog(`screen ready in ${((Date.now() - t0) / 1000).toFixed(1)} s (page: ${seen})`);
+  track("app_open", { layout: settings.density, theme: settings.theme, ai_key: !!aiKey(), language: settings.lang });
   if (loadIssues.length || !settingsOk) ev(`window.__aiToast && window.__aiToast(${safeJSON(BOOT_TEXT().missing)})`).catch(() => {});
   else if (loadRepaired.length) ev(`window.__aiToast && window.__aiToast(${safeJSON(BOOT_TEXT().repaired)})`).catch(() => {});   // damaged files were kept aside (safe-startup 1.1.0)
   // Deferred work, once the first screen is drawn: today's diary from TAMO, then updates (and the AI invitation), then the widget's icon.
@@ -4089,7 +4199,7 @@ async function main(fresh = null) {
   startLog("window on screen");
   await Promise.race([wv.loadHTML(buildHTML()), pause(15000)]);   // the launch screen, drawn on screen
   let closed = false;
-  presented.then(() => { closed = true; releaseLock(); });
+  presented.then(() => { closed = true; releaseLock(); flushUsage(); });
   bootApp(fresh, () => closed).catch((e) => {   // runs beside the window: closing it never waits on this
     startLog("start-up failed: " + (e.message || e));
     let log = "";

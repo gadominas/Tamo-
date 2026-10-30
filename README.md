@@ -239,8 +239,10 @@ After **Update now**, close and reopen the app to start using the new version. S
 
 ## Privacy and security
 
+- **Anonymous usage, only if you agree.** A one-time question (and **Settings › Privacy › Share anonymous usage**) decides whether Dienynas+ sends anonymous counts to PostHog's US cloud: app opens, tabs viewed, refreshes, messages and files opened, Ask answers and switching child, the app version and a few display settings (including the language). Each event carries a random install ID made on your phone, not linked to TAMO. Never sent: grades, subjects, messages, names, questions or answers, files or your TAMO account. Turning it off stops sending and deletes the install ID.
+
 - Your username and password are stored only in the **iOS Keychain** on your phone. They are never written into the script.
-- The script talks only to TAMO's own servers, plus Claude or OpenAI when you use ✨ Ask. There is no analytics or tracking.
+- The script talks only to TAMO's own servers, plus Claude or OpenAI when you use ✨ Ask. There is no analytics or tracking unless you agree to the anonymous usage counts below.
 - **✨ Ask sends the school data to the AI provider in use** with each question: lessons, homework, classwork, grades, attendance, notices, the calendar, message headers and the text of already-read messages, plus the conversation so far. The child's name isn't sent. OpenAI chat requests aren't stored for later retrieval by default; Anthropic doesn't train on API data by default. If you don't add a key, nothing is ever sent to an AI provider.
 - AI keys stay in the iOS Keychain and are only sent to their own provider. The app's page only ever sees them masked.
 - The Ask conversation and the data gathered for it are saved in Scriptable's local documents folder, one file per child. **Clear memory** deletes that child's file.
