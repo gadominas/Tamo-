@@ -47,7 +47,7 @@ const BLUEPRINTS = [
   { id: 'ai-configuration', name: 'AI configuration', version: '1.0.0', since: '1.5.0' },
   { id: 'launch-screen', name: 'Launch screen', version: '1.0.0', since: '1.7.0' },
   { id: 'widgets', name: 'Widgets', version: '1.0.0', since: '1.8.0' },
-  { id: 'ai-invitation', name: 'AI invitation', version: '1.2.0', since: '1.9.0' },
+  { id: 'ai-invitation', name: 'AI invitation', version: '1.2.1', since: '1.9.0' },
 ];
 
 const K = {
@@ -98,18 +98,36 @@ function startLog(msg) {
   } catch (e) {}
 }
 
-const loadIssues = [];   // files iCloud didn't hand over in time
+const loadIssues = [];    // files that didn't arrive (iCloud too slow, or unreadable): never written this run
+const loadRepaired = [];  // files that arrived damaged: kept aside as <name>.broken-<time>.json, then started fresh
 async function load(n, def, waitMs = 10000) {
   const p = SP(n);
   if (!sfm.fileExists(p)) return def;
+  let txt;
   try {
     if (sfm.isFileStoredIniCloud(p) && !sfm.isFileDownloaded(p)) {
       // iCloud can take a long time (or forever, offline): never let start-up hang on it
       await Promise.race([sfm.downloadFileFromiCloud(p), new Promise((r) => Timer.schedule(waitMs, false, r))]);
       if (!sfm.isFileDownloaded(p)) { loadIssues.push(n); startLog(`iCloud didn't deliver ${n}.json in ${waitMs / 1000} s`); return def; }
     }
-    return JSON.parse(sfm.readString(p));
-  } catch (e) { loadIssues.push(n); startLog(`Couldn't read ${n}.json: ${e}`); return def; }   // a broken file falls back to defaults, never crashes
+    txt = sfm.readString(p);
+    if (typeof txt !== "string") throw new Error("no text");
+  } catch (e) { loadIssues.push(n); startLog(`Couldn't read ${n}.json: ${e}`); return def; }   // not read: never saved over
+  try { return JSON.parse(txt); }
+  catch (e) { keepBroken(sfm, p, n, txt); return def; }   // arrived damaged: copied aside, then saving carries on
+}
+// It arrived but is damaged: keep a copy next to it, then start this file fresh so saving can carry on (1.1.0).
+// Without this, one damaged file stopped the app from ever saving again. The widget reads the data on every refresh
+// and never saves, so a copy that's already there is not made again. The parse error isn't logged: it can quote the file.
+function keepBroken(fm, p, n, txt) {
+  try {
+    const base = p.replace(/\.json$/, ""), dir = p.slice(0, p.lastIndexOf("/")), pre = base.slice(dir.length + 1) + ".broken-";
+    let kept = false;
+    try { kept = fm.listContents(dir).some(f => f.startsWith(pre) && fm.readString(fm.joinPath(dir, f)) === txt); } catch (_) {}
+    if (!kept) fm.writeString(base + ".broken-" + Date.now() + ".json", txt);
+    if (!loadRepaired.includes(n)) loadRepaired.push(n);
+    startLog(`${n}.json was damaged (not valid JSON); ${kept ? "a copy was already kept" : "kept a copy"} and started it fresh`);
+  } catch (e) { loadIssues.push(n); startLog(`${n}.json was damaged and couldn't be copied aside`); }   // no copy, no overwrite
 }
 // Files are only written once they were read, so a slow start can never save defaults over them.
 // settings.json is the only file write() handles; usage is guarded in aiWrite() the same way.
@@ -152,6 +170,7 @@ async function loadSettings() {
   settingsOk = !loadIssues.includes("settings");   // not read in time: use defaults, save nothing over the file
   if (saved) Object.assign(settings, saved);
   else {   // first run of 1.6: move what 1.5.x kept in the Keychain into settings.json
+    // (also a damaged settings.json, listed in loadRepaired: it was copied aside, so the defaults are saved over it)
     if (Keychain.contains(K.lang)) settings.lang = Keychain.get(K.lang);
     try { if (Keychain.contains(K.scale)) settings.gradeScales = JSON.parse(Keychain.get(K.scale)) || {}; } catch (_) {}
     if (saveSettings()) [K.lang, K.scale].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
@@ -167,10 +186,22 @@ async function loadSettings() {
 // AI token usage. Chats and "what's new" files are read per child later, after the window is up.
 let diaryCache = null;   // dienynas-plus-cache.json, or null when nothing is saved yet
 async function loadData() {
-  loadIssues.length = 0;
+  loadIssues.length = 0;   // loadRepaired is kept, so a damaged settings.json (read before this) still gets its toast
   diaryCache = readCache();   // a broken cache reads as "nothing saved": TAMO's next answer replaces it
-  try { const p = aiPath("usage"); if (aiFm.fileExists(p)) usage = JSON.parse(aiFm.readString(p)); }
-  catch (e) { loadIssues.push("usage"); startLog(`Couldn't read usage.json: ${e}`); }
+  const p = aiPath("usage");
+  if (aiFm.fileExists(p)) {
+    let txt = null;
+    try { txt = aiFm.readString(p); if (typeof txt !== "string") throw new Error("no text"); }
+    catch (e) { txt = null; loadIssues.push("usage"); startLog(`Couldn't read usage.json: ${e}`); }   // not read: never saved over
+    if (txt !== null) {
+      try { usage = JSON.parse(txt); }
+      catch (e) {   // arrived damaged: copied aside, counting starts fresh and is saved now (usage is otherwise saved
+        // only after an AI call, so the damaged file and its toast would stay until the next question to Ask)
+        keepBroken(aiFm, p, "usage", txt);
+        if (!loadIssues.includes("usage")) { usage = { since: Date.now(), p: {} }; try { aiFm.writeString(p, JSON.stringify(usage)); } catch (e2) {} }
+      }
+    }
+  }
   dataLoaded = loadIssues.length === 0;   // anything missing: show what we have, save nothing over it
 }
 
@@ -2022,7 +2053,8 @@ function pageMain() {
       window.__aiOpen();   // the same thing the Settings row's "ai-open" action does
       // Dienynas+: the AI sheet draws its cards once its state arrives, so look for Add key for up to 2 s.
       (function nudge(n) {
-        var add = document.querySelector('#aisheet [data-aiact="aikey"]');   // the provider in use comes first
+        // The Add key of the provider in use: its card is the one marked .active (ai-invitation 1.2.1).
+        var add = document.querySelector('#aisheet .aicard.active [data-aiact="aikey"]') || document.querySelector('#aisheet [data-aiact="aikey"]');
         if (!add) { if (n < 14) setTimeout(function () { nudge(n + 1); }, 150); return; }
         add.classList.add("aiinv-nudge"); if (add.scrollIntoView) add.scrollIntoView({ block: "center" }); setTimeout(function () { add.classList.remove("aiinv-nudge"); }, 2600);
       })(0);
@@ -2549,10 +2581,12 @@ const SPLASH_JS = '(function () {' +
 const BOOT_TEXT = () => (LANG() === "lt"
   ? { loading: "Įkeliamas dienynas…", still: "Vis dar įkeliama…", failed: "Dienynas+ nepavyko atidaryti",
       again: "Uždarykite Dienynas+ ir atidarykite iš naujo. Jei tai kartojasi, dar kartą paleiskite diegimo skriptą.",
-      missing: "Kai kurių nustatymų ar duomenų nepavyko nuskaityti. Kol iš naujo neatidarysite Dienynas+, jie nebus perrašyti." }
+      missing: "Kai kurių nustatymų ar duomenų nepavyko nuskaityti. Kol iš naujo neatidarysite Dienynas+, jie nebus perrašyti.",
+      repaired: "Kai kurių jūsų duomenų nepavyko nuskaityti, todėl Dienynas+ pasiliko jų kopiją ir pradėjo juos iš naujo." }
   : { loading: "Loading your diary…", still: "Still loading…", failed: "Dienynas+ couldn't open",
       again: "Close Dienynas+ and open it again. If it keeps happening, run the installer once more.",
-      missing: "Some of your settings or data couldn't be read. Nothing will be saved over them until you reopen Dienynas+." });
+      missing: "Some of your settings or data couldn't be read. Nothing will be saved over them until you reopen Dienynas+.",
+      repaired: "Some of your data couldn't be read, so Dienynas+ kept a copy and started it fresh." });
 
 // The page shell. It never contains the diary: the page goes on screen first, shows "Loading your diary…",
 // receives the chat in pieces (window.__parts), then window.__boot(state) starts it (recipe · safe-startup).
@@ -4000,6 +4034,7 @@ async function bootApp(fresh, isClosed) {
   try { seen = await ev(`document.visibilityState + ", " + innerWidth + "x" + innerHeight`, 5000); } catch (e) { seen = String(e.message || e); }
   startLog(`screen ready in ${((Date.now() - t0) / 1000).toFixed(1)} s (page: ${seen})`);
   if (loadIssues.length || !settingsOk) ev(`window.__aiToast && window.__aiToast(${safeJSON(BOOT_TEXT().missing)})`).catch(() => {});
+  else if (loadRepaired.length) ev(`window.__aiToast && window.__aiToast(${safeJSON(BOOT_TEXT().repaired)})`).catch(() => {});   // damaged files were kept aside (safe-startup 1.1.0)
   // Deferred work, once the first screen is drawn: today's diary from TAMO, then updates (and the AI invitation), then the widget's icon.
   let refreshed = Promise.resolve();
   Timer.schedule(700, false, () => {
