@@ -13,6 +13,7 @@ A faster, cleaner way to follow your child's school day in the TAMO dienynas, th
 [![AI](https://img.shields.io/badge/AI-Claude%20%7C%20OpenAI-171B22?style=flat-square&labelColor=0E1116)](#ai)
 [![Blueprints](https://img.shields.io/badge/built%20with-app--blueprints-171B22?style=flat-square&labelColor=0E1116)](docs/BLUEPRINTS.md)
 [![Last commit](https://img.shields.io/github/last-commit/gadominas/Tamo-?style=flat-square&labelColor=0E1116&color=171B22&label=updated)](https://github.com/gadominas/Tamo-/commits)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-171B22?style=flat-square&labelColor=0E1116)](LICENSE)
 
 </div>
 
@@ -321,4 +322,4 @@ A personal project, provided as is, without warranty. Not affiliated with TAMO, 
 
 ## License
 
-No license has been chosen yet, so default copyright applies: ask before reusing the code.
+[AGPL-3.0](LICENSE) © 2026 Gediminas Siutilas. The data layer's mappers are adapted from [sobakintech/tamo-dienynas-mcp](https://github.com/sobakintech/tamo-dienynas-mcp), which is AGPL-3.0, so Dienynas+ uses the same license: if you share a changed version, share its source too. Issues and pull requests are welcome: keep everything in a single Scriptable file, with no build step, and test on a real device. To release, follow [docs/RELEASING.md](docs/RELEASING.md).
