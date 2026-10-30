@@ -4,6 +4,45 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.10.0",
+      "date": "2026-10-31",
+      "title": "Clearer Settings",
+      "highlights": [
+        {
+          "icon": "🗂️",
+          "title": "Sections you can see",
+          "text": "Each Settings section now sits in its own card, so you can tell where it starts and ends.",
+          "lt": {
+            "title": "Matomos sekcijos",
+            "text": "Kiekviena nustatymų sekcija dabar savo kortelėje, todėl aišku, kur ji prasideda ir baigiasi."
+          }
+        },
+        {
+          "icon": "🔤",
+          "title": "Quieter headings",
+          "text": "Section names are small grey capitals, so they no longer look like settings.",
+          "lt": {
+            "title": "Ramesnės antraštės",
+            "text": "Sekcijų pavadinimai – mažos pilkos didžiosios raidės, todėl nebeatrodo kaip nustatymai."
+          }
+        },
+        {
+          "icon": "🎨",
+          "title": "In every palette",
+          "text": "The cards follow your colours, text size and layout, light or dark.",
+          "lt": {
+            "title": "Visose spalvose",
+            "text": "Kortelės prisitaiko prie jūsų spalvų, teksto dydžio ir išdėstymo, šviesiai ar tamsiai."
+          }
+        }
+      ],
+      "changes": [
+        "Settings (app-blueprints · settings 1.1.0): each section's rows sit in one card, with a thin border and a slightly lighter background, under a small muted uppercase heading",
+        "The changed-count line and a section's explanation sit outside the cards; Built with is a card too"
+      ],
+      "fixes": []
+    },
+    {
       "version": "1.9.0",
       "date": "2026-10-30",
       "title": "Opens every time",
