@@ -30,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.9.0';
+const VERSION = '1.10.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -43,7 +43,7 @@ const KC_UPDATE_SNOOZE = 'dienynasplus-update-snooze';   // Keychain key, unique
 const BLUEPRINTS_REPO = 'https://github.com/gadominas/app-blueprints';
 const BLUEPRINTS = [
   { id: 'in-app-updates', name: 'In-app updates', version: '1.0.0', since: '1.4.0' },
-  { id: 'settings', name: 'Settings', version: '1.0.0', since: '1.6.0' },
+  { id: 'settings', name: 'Settings', version: '1.1.0', since: '1.10.0' },
   { id: 'ai-configuration', name: 'AI configuration', version: '1.0.0', since: '1.5.0' },
   { id: 'launch-screen', name: 'Launch screen', version: '1.0.0', since: '1.7.0' },
   { id: 'widgets', name: 'Widgets', version: '1.0.0', since: '1.8.0' },
@@ -1409,6 +1409,12 @@ body.d-tiny .lesson .when{display:inline;margin-left:6px}
 #cfgsheet textarea.cfgsel{resize:none}
 #cfgsheet .cfgin:focus,#cfgsheet .cfgsel:focus{outline:2px solid var(--signal);outline-offset:-1px}
 #cfgsheet .cfg-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:18px}
+/* Settings blueprint 1.1.0: sections are cards under small muted capitals */
+#cfgsheet h3.sec{font:700 calc(12.5px * var(--ts, 1))/1.2 var(--sans, -apple-system, system-ui, sans-serif);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:28px 4px 8px}
+#cfgsheet .grp{background:var(--sheet);border:1px solid var(--rule);border-radius:16px;padding:0 16px;overflow:hidden}
+#cfgsheet .grp>*:last-child{border-bottom:0}
+#cfgsheet .grp .lk-row{margin:0;padding:12px 0;border-bottom:1px solid var(--rule)}
+#cfgsheet .cfg-foot{margin:10px 4px 0}
 #cfgsheet .note{font-size:12.5px;color:var(--muted)}
 #cfgsheet .srow.bp{width:100%;text-align:left}
 #cfgsheet .chev{flex:none;color:var(--muted);font-size:calc(20px * var(--ts));line-height:1}
@@ -2142,6 +2148,20 @@ function pageMain() {
       ${SET.blueprints.map((b) => `<button class="srow bp" data-act="openurl" data-v="${h(bpLink(b))}"><div class="grow"><b>${h(b.name)}</b><small class="muted">${h(CT.bp(b.version, SET.appName, b.since))}</small></div><span class="chev" aria-hidden="true">›</span></button>`).join("")}
       <button class="srow bp" data-act="openurl" data-v="${h(SET.blueprintsRepo)}"><div class="grow"><b>${h(CT.all)}</b><small class="muted">${h(SET.blueprintsRepo.replace("https://", ""))}</small></div><span class="chev" aria-hidden="true">›</span></button>`;
   }
+  // Settings blueprint 1.1.0: each section's rows in one card (.grp), built right after every render.
+  // A heading's explanation (p.hint right under it) and the changed-count footer (.cfg-foot) stay outside.
+  function cardSections(body) {
+    if (!body) return;
+    var inSec = false, grp = null, kids = Array.prototype.slice.call(body.children);
+    kids.forEach(function (n) {
+      var c = n.classList;
+      if (n.tagName === "H3" && c.contains("sec")) { inSec = true; grp = null; return; }
+      if (!inSec || c.contains("grp") || c.contains("cfg-foot")) { grp = null; return; }
+      if (!grp && n.tagName === "P" && c.contains("hint")) return;
+      if (!grp) { grp = document.createElement("div"); grp.className = "grp"; body.insertBefore(grp, n); }
+      grp.appendChild(n);
+    });
+  }
   function renderCfg() {
     const el = cfgSheet(), keep = el.scrollTop;
     el.classList.toggle("open", cfgOpen);
@@ -2170,6 +2190,7 @@ function pageMain() {
       <div class="cfg-foot"><span class="note">${h(changed ? CT.changed(changed) : CT.none)}</span>
         ${changed ? `<button class="sm danger ${cfgArmed ? "armed" : ""}" data-act="cfgall">${h(cfgArmed ? CT.confirmReset : CT.resetAll)}</button>` : ""}</div>
       ${builtWithHTML()}</div>`;
+    cardSections(el.querySelector(".sh-body"));   // Settings 1.1.0: one card per section
     el.scrollTop = keep;   // re-renders must not jump back to the top
   }
   const sendCfg = (action, params) => call(action, params || {}, 600000).then((st) => { if (st && st.cfgSchema) SET = st; renderCfg(); }, (e) => { (window.__aiToast || alert)(e.message); renderCfg(); });
