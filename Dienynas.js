@@ -30,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.12.0';
+const VERSION = '1.12.1';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -1322,7 +1322,7 @@ button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-rad
 .num{font-family:ui-rounded,"SF Pro Rounded",-apple-system,sans-serif;font-variant-numeric:tabular-nums}
 header.top{position:sticky;top:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(14px + env(safe-area-inset-top)) 14px 8px 14px;background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:padding .2s ease}
 .compact header.top{padding-top:calc(6px + env(safe-area-inset-top));padding-bottom:6px;border-bottom:1px solid var(--line)}
-.kids{display:flex;align-items:center;gap:8px;min-width:0;flex:1;overflow-x:auto;scrollbar-width:none;padding:2px}
+.kids{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:7px;margin:-7px}
 .kids::-webkit-scrollbar{display:none}
 .kid{display:flex;align-items:center;gap:8px;flex:none;border-radius:999px;padding:0;text-align:left;min-width:0}
 .av{width:46px;height:46px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font:800 17px/1 var(--display);background-size:cover;background-position:center;transition:width .2s ease,height .2s ease,font-size .2s ease,opacity .2s ease;box-shadow:0 0 0 2px var(--paper)}

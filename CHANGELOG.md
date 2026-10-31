@@ -2,6 +2,16 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.12.1 (2026-11-01): Rounder photos
+
+- ⭕ **Whole photo ring**: The selected child's photo and its ring now show as a full circle.
+- ↔️ **Room to scroll**: With several children, the photo row scrolls without cutting any edges.
+- 🌙 **Same in dark mode**: The ring stays whole in light and dark mode, at the top and while scrolling.
+
+**Fixes**
+
+- The selected child's photo ring was cut off at the top and left by the children row; the row now leaves room for it on every side
+
 ## 1.12.0 (2026-11-01): Switch children with one tap
 
 - 👧 **One-tap child switch**: Every child's photo sits at the top; tap one to switch straight away.

@@ -4,6 +4,47 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.12.1",
+      "date": "2026-11-01",
+      "title": "Rounder photos",
+      "lt": {
+        "title": "Apvalesnės nuotraukos"
+      },
+      "highlights": [
+        {
+          "icon": "⭕",
+          "title": "Whole photo ring",
+          "text": "The selected child's photo and its ring now show as a full circle.",
+          "lt": {
+            "title": "Visas nuotraukos žiedas",
+            "text": "Pasirinkto vaiko nuotrauka ir jos žiedas rodomi kaip visas apskritimas."
+          }
+        },
+        {
+          "icon": "↔️",
+          "title": "Room to scroll",
+          "text": "With several children, the photo row scrolls without cutting any edges.",
+          "lt": {
+            "title": "Vietos slinkti",
+            "text": "Kai vaikų daug, nuotraukų eilė slenka nenukirpdama kraštų."
+          }
+        },
+        {
+          "icon": "🌙",
+          "title": "Same in dark mode",
+          "text": "The ring stays whole in light and dark mode, at the top and while scrolling.",
+          "lt": {
+            "title": "Taip pat tamsiame režime",
+            "text": "Žiedas išlieka visas šviesiame ir tamsiame režime, viršuje ir slenkant."
+          }
+        }
+      ],
+      "changes": [],
+      "fixes": [
+        "The selected child's photo ring was cut off at the top and left by the children row; the row now leaves room for it on every side"
+      ]
+    },
+    {
       "version": "1.12.0",
       "date": "2026-11-01",
       "title": "Switch children with one tap",
