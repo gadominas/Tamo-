@@ -37,7 +37,8 @@ A faster, cleaner way to follow your child's school day in the TAMO dienynas, th
 - **Schedule.** The week with lessons per day; tap a lesson for its teacher, topic, homework, attachments and subject average.
 - **Messages.** A bar chart of the last 7 days with the unread part in yellow, messages grouped by day, and each message in a sheet.
 - **Grades.** Subject averages for the last 30 days on your school's grade scale (1–10, 1–7 or any other), recent grades, formative assessments and attendance.
-- **🔔 Scheduled checks.** Run it from Shortcuts to be told about new homework, grades, messages and teacher notes.
+- **Children at the top.** Each child's photo or initials sits in the header; tap one to switch. The header shrinks as you scroll.
+- **🔔 Scheduled checks.** Run it from Shortcuts to be told about new homework, grades, messages and teacher notes; everything announced stays on Today until you mark it as seen.
 - **Lithuanian and English.** The interface, the widget and the alerts follow the language set in Settings.
 - **Home Screen widget.** The lesson now or next, homework due tomorrow, today's messages and the rest of the day, without grades or message text.
 - **Launch screen, Settings and dark mode.** The calendar logo draws itself on start; six palettes or Auto, three layouts, text size and headline font.
@@ -52,17 +53,18 @@ A faster, cleaner way to follow your child's school day in the TAMO dienynas, th
 </p>
 <p align="center">
   <img src="docs/screenshots/07-lithuanian.png" width="31%" alt="Today screen in Lithuanian: what to prepare for tomorrow, with a maths test flagged and the homework due">
-  <img src="docs/screenshots/08-launch.png" width="31%" alt="Launch screen: the Dienynas+ calendar logo drawing itself above the name">
-  <img src="docs/screenshots/09-settings.png" width="31%" alt="Settings: Appearance with colour palettes, layout, text size and headline font, then language and grade scale">
+  <img src="docs/screenshots/08-children.png" width="31%" alt="Schedule scrolled down: the header has shrunk to the selected child's photo and name, with a second child's initials beside it">
+  <img src="docs/screenshots/09-launch.png" width="31%" alt="Launch screen: the Dienynas+ calendar logo drawing itself above the name">
 </p>
 <p align="center">
-  <img src="docs/screenshots/10-ai-key.png" width="31%" alt="AI settings: Claude in use with a masked key, the model picker, and a toast confirming the connection test">
-  <img src="docs/screenshots/11-ai-usage.png" width="31%" alt="AI settings, token usage: total, input and output tokens, a 14-day bar chart and tables per feature and model">
-  <img src="docs/screenshots/12-update.png" width="31%" alt="Update sheet: a new version with three highlights, Update now and Later">
+  <img src="docs/screenshots/10-settings.png" width="31%" alt="Settings: Appearance with colour palettes, layout, text size and headline font, then language and grade scale">
+  <img src="docs/screenshots/11-ai-key.png" width="31%" alt="AI settings: Claude in use with a masked key, the model picker, and a toast confirming the connection test">
+  <img src="docs/screenshots/12-ai-usage.png" width="31%" alt="AI settings, token usage: total, input and output tokens, a 14-day bar chart and tables per feature and model">
 </p>
 <p align="center">
-  <img src="docs/screenshots/13-dark.png" width="31%" alt="Dark mode: the Messages screen with a message about a museum trip open in a sheet">
-  <img src="docs/screenshots/14-widget.png" width="31%" alt="Medium Home Screen widget: the English lesson now, the next lesson, homework due tomorrow, today's messages and lessons left">
+  <img src="docs/screenshots/13-update.png" width="31%" alt="Update sheet: a new version with three highlights, Update now and Later">
+  <img src="docs/screenshots/14-dark.png" width="31%" alt="Dark mode: the Messages screen with a message about a museum trip open in a sheet">
+  <img src="docs/screenshots/15-widget.png" width="31%" alt="Medium Home Screen widget: the English lesson now, the next lesson, homework due tomorrow, today's messages and lessons left">
 </p>
 
 ## Install
@@ -165,7 +167,9 @@ Run the script on a schedule and it tells you what's new since the last check:
 
 **If the script runs in the Scriptable app**, the news appears as a **popup alert** with an **Open** button. **If Shortcuts runs it in the background**, iOS doesn't allow alerts, so the same list arrives as a **notification**; tapping it opens the app. The text is also returned as the Shortcut output, so a **Show Alert** or **Show Result** action can display it too.
 
-Opening the app normally also pops up anything new that arrived since the last run. Nothing is repeated: once an item has been shown, it won't come up again. The very first check only records what's already there.
+Opening the app or tapping Refresh also pops up anything new since the last run, inside the app. Nothing is repeated: once an item has been shown, it won't come up again, and nothing older than 21 days is announced. The very first check only records what's already there.
+
+**Nothing lives only in the popup.** Every announced item stays at the top of Today under **New since last check** until you tap **Mark all as seen**. Tap a message to open it, or a grade or homework item to jump to its tab; teacher notes and absences show their full text right there.
 
 **Set it up in Shortcuts:**
 
@@ -181,7 +185,7 @@ Checks cover the child currently selected in the app. Network hiccups in the bac
 
 ### Several children, offline, and the rest
 
-- **Several children on one account:** the app asks whose diary to show and remembers the choice; switch any time from **Settings › Account**.
+- **Several children on one account:** every child sits at the top of the screen as a round photo, or their initials. Tap another child to switch straight away, on the same sign-in: their last data appears at once while fresh data loads. Tap the selected child to **choose a photo** from your album (it's cropped to a circle and kept only on the phone), change it or remove it. The header stays on top and shrinks as you scroll. Grade scale, ✨ Ask conversations and new-item alerts are kept per child. **Settings › Account › Switch child** works too.
 - **Works offline.** The last loaded data is shown straight away and refreshed in the background. If TAMO can't be reached, the saved data stays on screen with a note saying when it's from.
 - **Lithuanian and English** interface, switchable in **Settings › General**.
 - **Launch screen.** Dienynas+ opens on its logo for 2.4 seconds: the calendar draws itself, then "Messages. Homework. Calm." ("Žinutės. Užduotys. Ramybė." in Lithuanian). Tap to skip; with Reduce Motion it appears without movement. It is the shared [launch-screen](https://github.com/gadominas/app-blueprints/blob/main/blueprints/launch-screen.md) blueprint, so all the apps start the same way.

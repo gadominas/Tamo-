@@ -2,6 +2,29 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.12.0 (2026-11-01): Switch children with one tap
+
+- 👧 **One-tap child switch**: Every child's photo sits at the top; tap one to switch straight away.
+- 🖼️ **Photos from your album**: Give each child a photo from your album so you always know whose diary it is.
+- 🔔 **News you can find**: Everything a check reports stays on Today until you mark it as seen.
+
+**Changes**
+
+- Children row in the header (photo or initials): tap another child to switch on the same sign-in; their saved data shows at once while fresh data loads
+- Tap the selected child to choose, change or remove a photo from the album (square crop, kept on the phone); it replaces the logo in the header
+- The header stays on top and shrinks while scrolling
+- Saved diary kept per child; Settings › Account › Switch child lists the children instead of signing in again
+- New since last check on Today, with every item a check announced; tap a message to open it, a grade or homework to jump to its tab; Mark all as seen clears it
+- The news popup appears inside the app on start and after Refresh, instead of a system alert
+- Screenshots: a second invented child, an invented photo, a new Switch children card
+
+**Fixes**
+
+- Old teacher notes and absences could be announced again as new: TAMO's notification feed has no ids, so they're now matched by content
+- Items older than 21 days are never announced as new
+- Popup items that couldn't be found anywhere in the app
+- Screenshots: the update card offered an old version (1.9.0), so the update sheet no longer appeared
+
 ## 1.11.0 (2026-10-31): Anonymous usage, if you agree
 
 - 📊 **Help shape Dienynas+**: If you agree, Dienynas+ sends anonymous counts of the features you use. Nothing else.

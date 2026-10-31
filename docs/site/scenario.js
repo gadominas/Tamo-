@@ -28,6 +28,11 @@ function utc(date, hhmm) {
 
 // ───────── the invented class ─────────
 const CHILD = { title: 'Ugnė Pavyzdytė', subtitle: '5A klasė' };
+const CHILD2 = { title: 'Jonas Pavyzdys', subtitle: '2B klasė' };   // a younger brother: shows the children row at the top
+// The app's own file-name hash (Dienynas.js › hashKey), for files kept per child.
+function hashKey(s) { let x = 5381; for (const c of String(s)) x = ((x * 33) ^ c.codePointAt(0)) >>> 0; return x.toString(36); }
+// Ugnė's photo: an invented illustration made for these screenshots (docs/site/avatar-demo.jpg), not a real child.
+const AVATAR = path.join(__dirname, 'avatar-demo.jpg');
 const TIMES = [['08:00', '08:45'], ['08:55', '09:40'], ['10:00', '10:45'], ['11:05', '11:50'], ['12:00', '12:45'], ['13:00', '13:45']];
 const TEACH = {
   'Matematika': 'Rasa Skaičiūtė',
@@ -258,8 +263,10 @@ function usageSeed() {
 const RELEASES = JSON.parse(fs.readFileSync(path.join(ROOT, 'releases.json'), 'utf8'));
 function releasesWithOffer() {
   const r = JSON.parse(JSON.stringify(RELEASES));
+  // Always one minor version ahead of the newest release, so the app has something to offer.
+  const [maj, min] = String(r.releases[0].version).split('.').map(Number);
   r.releases.unshift({
-    version: '1.9.0', date: '2026-11-12', title: 'Ready for the week',
+    version: `${maj}.${min + 1}.0`, date: '2026-11-12', title: 'Ready for the week',
     highlights: [
       { icon: '🎒', title: 'Pack for tomorrow', text: "Tomorrow's subjects and what's due, as a checklist you can tick off." },
       { icon: '🔔', title: 'Quieter checks', text: 'Scheduled checks group news per child and skip empty runs.' },
@@ -277,14 +284,16 @@ module.exports = {
   settle: 3900,   // the launch screen (2.9 s), then the page with fresh TAMO data
   fixtures: (shot) => ({
     files: Object.assign({
-      [DOCS + '/DienynasPlus/settings.json']: { lang: shot.lt ? 'lt' : 'en', checkUpdates: true, theme: 'auto', density: 'comfortable', font: 'sans', textSize: 1, gradeScales: {}, cfg: {} },
+      [DOCS + '/DienynasPlus/settings.json']: { lang: shot.lt ? 'lt' : 'en', checkUpdates: true, theme: 'auto', density: 'comfortable', font: 'sans', textSize: 1, gradeScales: {}, cfg: {}, usageAsked: true },
       [LOCAL + '/dienynas-plus-ai-settings.json']: { aiProvider: 'anthropic', ai: true, models: { anthropic: { at: NOW - 3 * 864e5, list: [
         { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' }, { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' }, { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5' }] } } },
       [LOCAL + '/dienynas-plus-usage.json']: usageSeed(),
+      [LOCAL + '/dienynas-plus-avatar-' + hashKey(CHILD.title + '|' + CHILD.subtitle) + '.jpg']: fs.readFileSync(AVATAR),
     }, shot.files || {}),
     keychain: Object.assign({
       'dienynasplus.username': 'demo.tevai',          // fake sign-in; the fixtures accept anything
       'dienynasplus.password': 'not-a-real-password',
+      'dienynasplus.role': CHILD.title + '|' + CHILD.subtitle,   // the child picked last time (two children on the account)
       DIENYNASPLUS_ANTHROPIC_KEY: 'sk-ant-demo-0000000000001234',
     }),
     alerts: [],
@@ -295,7 +304,8 @@ module.exports = {
       // TAMO sign-in (MobileServiceV3) and roles
       { match: 'MobileServiceV3/AuthenticateV2', respond: { json: { Status: '1', ErrorCode: '0', Result: { authToken: 'demo-token-0001', userRoleIsAllowed: true, personId: '100200', role: '3', firstName: 'Demo', lastName: 'Tėvai' } } } },
       { match: 'core/app/settings/StyleRef', respond: { json: { isSuccess: true } } },
-      { match: 'core/app/roles', respond: { json: { isSuccess: true, roles: [{ id: 'role-demo-1', title: CHILD.title, subtitle: CHILD.subtitle, active: true, childStudentId: '300400' }] } } },
+      { match: 'core/app/roles', respond: { json: { isSuccess: true, roles: [{ id: 'role-demo-1', title: CHILD.title, subtitle: CHILD.subtitle, active: true, childStudentId: '300400' },
+        { id: 'role-demo-2', title: CHILD2.title, subtitle: CHILD2.subtitle, active: false, childStudentId: '300401' }] } } },
       // TAMO data (api.tamo.lt)
       { match: 'v2/app/calendar/events', respond: (req) => ({ json: weekPayload(new URL(req.url).searchParams.get('date').slice(0, 10)) }) },
       { match: 'core/app/darbai', respond: (req) => ({ json: darbai(Object.fromEntries(new URL(req.url).searchParams)) }) },
@@ -336,28 +346,35 @@ module.exports = {
       run: async (h) => { await h.tap('[data-tab="4"]'); } },
     { id: '07-lithuanian', label: 'In Lithuanian too', caption: 'Switch between Lithuanian and English in Settings › General.', lt: true,
       run: async (h) => { await h.scrollTo('main section:nth-of-type(3)', 18); } },
-    { id: '08-launch', label: 'Launch screen', caption: 'The calendar draws itself for a moment; a tap skips it.', settle: 800 },
-    { id: '09-settings', label: 'Settings', caption: 'Six palettes or Auto, three layouts, text size and headline font.',
+    { id: '08-children', label: 'Switch children in one tap', caption: 'Each child’s photo stays at the top and shrinks as you scroll; tap one to switch.',
+      run: async (h) => {
+        await h.tap('[data-tab="1"]');
+        await h.tap('.lesson.current');
+        await h.scrollTo(330);   // scrolled: the header and the children row shrink
+      } },
+    { id: '09-launch', label: 'Launch screen', caption: 'The calendar draws itself for a moment; a tap skips it.', settle: 800 },
+    { id: '10-settings', label: 'Settings', caption: 'Six palettes or Auto, three layouts, text size and headline font.',
       run: async (h) => { await h.tap('#settings', { after: 900 }); } },
-    { id: '10-ai-key', label: 'Your own AI key', caption: 'A Claude or OpenAI key, kept in the iOS Keychain; pick any model it can use.',
+    { id: '11-ai-key', label: 'Your own AI key', caption: 'A Claude or OpenAI key, kept in the iOS Keychain; pick any model it can use.',
       run: async (h) => {
         await h.tap('#settings', { after: 900 });
         await h.tap('[data-act="ai-open"]', { after: 1200 });
         await h.eval(() => document.querySelector('#aisheet [data-aiact="aitest"][data-v="anthropic"]').click());
         await h.wait(1500);
       } },
-    { id: '11-ai-usage', label: 'What Ask costs', caption: 'Tokens per day, feature and model, counted from what the provider reports.',
+    { id: '12-ai-usage', label: 'What Ask costs', caption: 'Tokens per day, feature and model, counted from what the provider reports.',
       run: async (h) => {
         await h.tap('#settings', { after: 900 });
         await h.tap('[data-act="ai-open"]', { after: 1200 });
         await h.scrollEl('#aisheet', 760);
       } },
-    { id: '12-update', label: 'Updates itself', caption: 'A new version shows its three best features; Later waits two days.', update: true },
-    { id: '13-dark', label: 'Dark mode', caption: 'Follows the iPhone with Auto colours, or pick Slate or Night.', dark: true,
+    { id: '13-update', label: 'Updates itself', caption: 'A new version shows its three best features; Later waits two days.', update: true,
+      settle: 7000 },   // the app checks for updates 3.5 s after its first screen, which comes after the launch screen
+    { id: '14-dark', label: 'Dark mode', caption: 'Follows the iPhone with Auto colours, or pick Slate or Night.', dark: true,
       run: async (h) => {
         await h.tap('[data-tab="3"]');
         await h.tap('[data-msg*="9104"]', { after: 1200 });
       } },
-    { id: '14-widget', label: 'Today on the Home Screen', caption: 'The lesson now and next, homework due tomorrow and today’s messages.', widget: 'medium' },
+    { id: '15-widget', label: 'Today on the Home Screen', caption: 'The lesson now and next, homework due tomorrow and today’s messages.', widget: 'medium' },
   ],
 };

@@ -4,6 +4,58 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.12.0",
+      "date": "2026-11-01",
+      "title": "Switch children with one tap",
+      "lt": {
+        "title": "Vaikų perjungimas vienu paspaudimu"
+      },
+      "highlights": [
+        {
+          "icon": "👧",
+          "title": "One-tap child switch",
+          "text": "Every child's photo sits at the top; tap one to switch straight away.",
+          "lt": {
+            "title": "Vaikai vienu paspaudimu",
+            "text": "Visų vaikų nuotraukos viršuje: paspauskite ir iš karto perjunkite."
+          }
+        },
+        {
+          "icon": "🖼️",
+          "title": "Photos from your album",
+          "text": "Give each child a photo from your album so you always know whose diary it is.",
+          "lt": {
+            "title": "Nuotraukos iš albumo",
+            "text": "Kiekvienam vaikui priskirkite nuotrauką iš albumo."
+          }
+        },
+        {
+          "icon": "🔔",
+          "title": "News you can find",
+          "text": "Everything a check reports stays on Today until you mark it as seen.",
+          "lt": {
+            "title": "Naujienos neprapuola",
+            "text": "Viskas, apie ką pranešta, lieka skiltyje „Šiandien“, kol pažymite kaip peržiūrėta."
+          }
+        }
+      ],
+      "changes": [
+        "Children row in the header (photo or initials): tap another child to switch on the same sign-in; their saved data shows at once while fresh data loads",
+        "Tap the selected child to choose, change or remove a photo from the album (square crop, kept on the phone); it replaces the logo in the header",
+        "The header stays on top and shrinks while scrolling",
+        "Saved diary kept per child; Settings › Account › Switch child lists the children instead of signing in again",
+        "New since last check on Today, with every item a check announced; tap a message to open it, a grade or homework to jump to its tab; Mark all as seen clears it",
+        "The news popup appears inside the app on start and after Refresh, instead of a system alert",
+        "Screenshots: a second invented child, an invented photo, a new Switch children card"
+      ],
+      "fixes": [
+        "Old teacher notes and absences could be announced again as new: TAMO's notification feed has no ids, so they're now matched by content",
+        "Items older than 21 days are never announced as new",
+        "Popup items that couldn't be found anywhere in the app",
+        "Screenshots: the update card offered an old version (1.9.0), so the update sheet no longer appeared"
+      ]
+    },
+    {
       "version": "1.11.0",
       "date": "2026-10-31",
       "title": "Anonymous usage, if you agree",

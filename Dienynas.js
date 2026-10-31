@@ -30,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.11.0';
+const VERSION = '1.12.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -68,6 +68,7 @@ const K = {
   // 1.5.x kept the language and grade scales here; moved to settings.json on first run
   lang: "dienynasplus.lang",
   scale: "dienynasplus.grade-scale",
+  kids: "dienynasplus.children",   // the account's children (key, name, class), for the switcher at the top
 };
 
 // ───────── AI invitation (app-blueprints · ai-invitation) ─────────
@@ -534,9 +535,43 @@ class Tamo {
     };
     Keychain.set(K.role, session.roleKey);
     Keychain.set(K.session, JSON.stringify(session));
+    Keychain.set(K.kids, JSON.stringify(session.roles));
     this.session = session;
     return session;
   }
+
+  // Switch to another child on the same sign-in: ask TAMO for fresh role ids and select the other one.
+  async switchRole(key) {
+    Keychain.set(K.role, key);
+    const s = this.session || (Keychain.contains(K.session) ? (() => { try { return JSON.parse(Keychain.get(K.session)); } catch (_) { return null; } })() : null);
+    if (s && validHeader(s.token)) {
+      try {
+        const roles = requiredList(await this.request("core/app/roles", {}, { token: s.token }), "roles");
+        const role = roles.find((r) => roleKey(r) === key);
+        if (role && validHeader(str(role, "id"))) {
+          const session = {
+            ...s,
+            roleId: str(role, "id"),
+            roleKey: key,
+            roleTitle: plain(str(role, "title")),
+            roleSubtitle: plain(str(role, "subtitle")),
+            studentId: str(role, "childStudentId") || str(role, "studentId"),
+            roles: roles.map((r) => ({ key: roleKey(r), title: plain(str(r, "title")), subtitle: plain(str(r, "subtitle")) })),
+            at: Date.now(),
+          };
+          Keychain.set(K.session, JSON.stringify(session));
+          Keychain.set(K.kids, JSON.stringify(session.roles));
+          this.session = session;
+          return session;
+        }
+      } catch (_) {}
+    }
+    // token expired or role not found: a fresh sign-in picks the saved child
+    this.session = null;
+    if (Keychain.contains(K.session)) Keychain.remove(K.session);
+    return this.relogin();
+  }
+
 
   // Role ids change on every roles request, so the choice is remembered by title + subtitle.
   async pickRole(roles) {
@@ -745,7 +780,7 @@ function mapFeed(items) {
       const key = Object.keys(d).find((k) => k.toLowerCase() === n.toLowerCase());
       return key ? plain(str(d, key)) : "";
     };
-    const base = { id: str(item, "id") || String(idx), date: dateOnly(str(item, "date")), subject: field("ThingName"), lessonDate: dateOnly(field("Date")) };
+    const base = { id: str(item, "id"), date: dateOnly(str(item, "date")), subject: field("ThingName"), lessonDate: dateOnly(field("Date")) };
     switch (str(item, "eventId")) {
       case "4": {
         const text = field("HomeWork") || field("Description");
@@ -899,26 +934,86 @@ async function loadAll(api) {
 // ───────────────────────────── cache ─────────────────────────────
 
 const fm = FileManager.local();
-const cachePath = () => fm.joinPath(fm.documentsDirectory(), "dienynas-plus-cache.json");
+// One cache file per child, so switching children shows their last data straight away.
+const LEGACY_CACHE = "dienynas-plus-cache.json";
+const cachePath = (roleKey) => fm.joinPath(fm.documentsDirectory(), roleKey ? `dienynas-plus-cache-${hashKey(roleKey)}.json` : LEGACY_CACHE);
+const currentRoleKey = () => (Keychain.contains(K.role) ? Keychain.get(K.role) : "");
 function saveCache(data) {
   try {
-    fm.writeString(cachePath(), JSON.stringify(data));
+    fm.writeString(cachePath(data.child && data.child.key), JSON.stringify(data));
   } catch (_) {}
 }
-function readCache() {
-  try {
-    if (!fm.fileExists(cachePath())) return null;
-    const d = JSON.parse(fm.readString(cachePath()));
-    const key = Keychain.contains(K.role) ? Keychain.get(K.role) : "";
-    return d && d.v === 1 && (!key || d.child.key === key) ? d : null;
-  } catch (_) {
-    return null;
+function readCache(roleKey = currentRoleKey()) {
+  for (const p of [cachePath(roleKey), fm.joinPath(fm.documentsDirectory(), LEGACY_CACHE)]) {
+    try {
+      if (!fm.fileExists(p)) continue;
+      const d = JSON.parse(fm.readString(p));
+      if (d && d.v === 1 && (!roleKey || d.child.key === roleKey)) return d;
+    } catch (_) {}
   }
+  return null;
+}
+function removeDocs(pattern) {
+  try {
+    fm.listContents(fm.documentsDirectory())
+      .filter((n) => pattern.test(n))
+      .forEach((n) => fm.remove(fm.joinPath(fm.documentsDirectory(), n)));
+  } catch (_) {}
 }
 function clearCache() {
+  removeDocs(/^dienynas-plus-cache.*\.json$/);
+}
+
+// ───────────────────────────── children: list, photos, switching ─────────────────────────────
+
+function knownChildren() {
   try {
-    if (fm.fileExists(cachePath())) fm.remove(cachePath());
+    const s = Keychain.contains(K.session) ? JSON.parse(Keychain.get(K.session)) : null;
+    if (s && Array.isArray(s.roles) && s.roles.length) return s.roles;
   } catch (_) {}
+  try {
+    return Keychain.contains(K.kids) ? JSON.parse(Keychain.get(K.kids)) : [];
+  } catch (_) {
+    return [];
+  }
+}
+const avatarPath = (roleKey) => fm.joinPath(fm.documentsDirectory(), `dienynas-plus-avatar-${hashKey(roleKey)}.jpg`);
+function avatarURI(roleKey) {
+  try {
+    const p = avatarPath(roleKey);
+    if (fm.fileExists(p)) return `data:image/jpeg;base64,${fm.read(p).toBase64String()}`;
+  } catch (_) {}
+  return "";
+}
+// Photo from the album, cropped to a square and shrunk so the page stays light.
+async function chooseAvatar(roleKey) {
+  let img;
+  try {
+    img = await Photos.fromLibrary();
+  } catch (_) {
+    return false; // cancelled
+  }
+  const size = 240;
+  const ctx = new DrawContext();
+  ctx.size = new Size(size, size);
+  ctx.respectScreenScale = false;
+  ctx.opaque = true;
+  const w = img.size.width;
+  const h = img.size.height;
+  const k = Math.max(size / w, size / h);
+  ctx.drawImageInRect(img, new Rect((size - w * k) / 2, (size - h * k) / 2, w * k, h * k));
+  fm.write(avatarPath(roleKey), Data.fromJPEG(ctx.getImage()));
+  return true;
+}
+function removeAvatar(roleKey) {
+  try {
+    if (fm.fileExists(avatarPath(roleKey))) fm.remove(avatarPath(roleKey));
+  } catch (_) {}
+}
+function childrenForPage(activeKey) {
+  const list = knownChildren();
+  const kids = list.length ? list : activeKey ? [{ key: activeKey }] : [];
+  return kids.map((r) => ({ key: r.key, title: r.title || "", subtitle: r.subtitle || "", avatar: avatarURI(r.key), active: r.key === activeKey }));
 }
 
 // ───────────────────────────── widget content (app-blueprints · widgets) ─────────────────────────────
@@ -1090,6 +1185,10 @@ const NATIVE_TEXT = {
     scaleOther: "Other…",
     scaleOtherTitle: "Highest grade at this school",
     scaleMenu: "Grade scale",
+    photoTitle: "Photo",
+    photoChoose: "Choose a photo",
+    photoChange: "Choose another photo",
+    photoRemove: "Remove photo",
   },
   lt: {
     pickChild: "Kieno dienynas?",
@@ -1120,6 +1219,10 @@ const NATIVE_TEXT = {
     scaleOther: "Kita…",
     scaleOtherTitle: "Aukščiausias pažymys šioje mokykloje",
     scaleMenu: "Vertinimo skalė",
+    photoTitle: "Nuotrauka",
+    photoChoose: "Pasirinkti nuotrauką",
+    photoChange: "Pasirinkti kitą nuotrauką",
+    photoRemove: "Pašalinti nuotrauką",
   },
 };
 const t = (k) => (NATIVE_TEXT[LANG()] || NATIVE_TEXT.en)[k] || k;
@@ -1213,15 +1316,37 @@ body.d-tiny{--rowpad:7px 12px;--lessonpad:6px 12px;--gap:10px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--paper);color:var(--ink);touch-action:pan-x pan-y;-webkit-user-select:none;user-select:none}
 .body,.text,.detail p{-webkit-user-select:text;user-select:text}
-body{font:calc(16px * var(--ts))/1.4 var(--sans);padding:env(safe-area-inset-top) 0 calc(78px + env(safe-area-inset-bottom));-webkit-text-size-adjust:100%}
+body{font:calc(16px * var(--ts))/1.4 var(--sans);padding:0 0 calc(78px + env(safe-area-inset-bottom));-webkit-text-size-adjust:100%}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 button:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px}
 .num{font-family:ui-rounded,"SF Pro Rounded",-apple-system,sans-serif;font-variant-numeric:tabular-nums}
-header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 6px}
+header.top{position:sticky;top:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(14px + env(safe-area-inset-top)) 14px 8px 14px;background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:padding .2s ease}
+.compact header.top{padding-top:calc(6px + env(safe-area-inset-top));padding-bottom:6px;border-bottom:1px solid var(--line)}
+.kids{display:flex;align-items:center;gap:8px;min-width:0;flex:1;overflow-x:auto;scrollbar-width:none;padding:2px}
+.kids::-webkit-scrollbar{display:none}
+.kid{display:flex;align-items:center;gap:8px;flex:none;border-radius:999px;padding:0;text-align:left;min-width:0}
+.av{width:46px;height:46px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font:800 17px/1 var(--display);background-size:cover;background-position:center;transition:width .2s ease,height .2s ease,font-size .2s ease,opacity .2s ease;box-shadow:0 0 0 2px var(--paper)}
+.kid:not(.on) .av{width:38px;height:38px;font-size:14px;opacity:.6}
+.kid.on .av{box-shadow:0 0 0 2px var(--paper),0 0 0 4.5px var(--blue)}
+.kn{display:flex;flex-direction:column;min-width:0;line-height:1.25;overflow:hidden;transition:opacity .2s ease}
+.kn b{font-family:var(--display);font-size:calc(15px * var(--ts));font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+.kn small{font-size:calc(12.5px * var(--ts));color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw;max-height:3em;transition:max-height .2s ease,opacity .2s ease}
+.kid:not(.on) .kn{display:none}
+.compact .av{width:30px;height:30px;font-size:12px}
+.compact .kid:not(.on) .av{width:26px;height:26px;font-size:11px}
+.compact .kn small{max-height:0;opacity:0}
+.compact .kn b{font-size:calc(14px * var(--ts))}
+.compact .icon-btn{width:32px;height:32px;border-radius:16px}
+.compact .icon-btn svg{width:16px;height:16px}
+.kid.busy .av{animation:kidpulse 1s ease-in-out infinite}
+@keyframes kidpulse{50%{opacity:.35}}
+.switching main{opacity:.5;transition:opacity .2s}
+.newsp .row{cursor:pointer}
+.newsp .kindic{font-size:18px;line-height:1.3;flex:none;width:22px;text-align:center}
 .who{font-size:calc(13px * var(--ts));color:var(--muted);line-height:1.3}
 .who b{color:var(--ink);font-family:var(--display);font-weight:600;font-size:calc(15px * var(--ts));display:block}
 .tools{display:flex;gap:6px}
-.icon-btn{width:38px;height:38px;border-radius:19px;background:var(--card);display:grid;place-items:center;border:1px solid var(--line)}
+.icon-btn{width:38px;height:38px;border-radius:19px;background:var(--card);display:grid;place-items:center;border:1px solid var(--line);transition:width .2s ease,height .2s ease}
 .icon-btn svg{width:19px;height:19px;stroke:var(--ink);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .icon-btn.busy svg{animation:turn 1s linear infinite}
 @keyframes turn{to{transform:rotate(360deg)}}
@@ -1375,7 +1500,7 @@ footer{color:var(--faint);font-size:calc(12.5px * var(--ts));text-align:center;m
 .composer .send:disabled{opacity:.4}
 .composer .send svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .askhint{color:var(--faint);font-size:calc(12.5px * var(--ts));text-align:center;margin:2px 0 0}
-@media (prefers-reduced-motion: reduce){ .sheet{transition:none} .icon-btn.busy svg{animation:none} .typing i{animation:none;opacity:.6} }
+@media (prefers-reduced-motion: reduce){ .av,.kn small,header.top,.icon-btn{transition:none} .kid.busy .av{animation:none} .sheet{transition:none} .icon-btn.busy svg{animation:none} .typing i{animation:none;opacity:.6} }
 /* Dienynas+ logo: calendar plus (header mark, loading and sign-in screens, launch screen) */
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
 .brand-mark{width:34px;height:34px;border-radius:9px;background:#0E1116;flex:none;box-shadow:inset 0 0 0 1px rgba(246,247,249,.14)}
@@ -1570,6 +1695,7 @@ function pageMain() {
       gathering: "Pulling everything from TAMO…", gatherFailed: (e) => `Couldn't pull the data: ${e}`,
       stages: { schedule: "Lessons", homework: "Homework", grades: "Grades and attendance", calendar: "School calendar", messages: "Messages" },
       scaleLbl: (m) => `Scale 1–${m}`,
+      news: { title: "New since last check", popup: (n) => `${n} new in TAMO`, clear: "Mark all as seen", ok: "OK", hw: "Homework", grades: "Grade", msgs: "Message", notes: "Teacher note", group: "class group", tapHint: "Tap an item to open it." },
       upd: {
         tag: (v) => `New version ${v}`, title: "An update is ready", more: (n) => ` (and ${n} more update${n > 1 ? "s" : ""})`,
         have: (cur, more) => `You have ${cur}${more}. Here’s what you get:`, now: "Update now", later: "Later, remind me in 2 days",
@@ -1615,6 +1741,7 @@ function pageMain() {
       gathering: "Renkami visi TAMO duomenys…", gatherFailed: (e) => `Nepavyko surinkti duomenų: ${e}`,
       stages: { schedule: "Pamokos", homework: "Namų darbai", grades: "Pažymiai ir lankomumas", calendar: "Mokyklos kalendorius", messages: "Žinutės" },
       scaleLbl: (m) => `Skalė 1–${m}`,
+      news: { title: "Nauja nuo paskutinio patikrinimo", popup: (n) => `TAMO naujienos: ${n}`, clear: "Pažymėti kaip peržiūrėtas", ok: "Gerai", hw: "Namų darbai", grades: "Pažymys", msgs: "Žinutė", notes: "Mokytojo įrašas", group: "klasės grupė", tapHint: "Paspauskite, kad atidarytumėte." },
       upd: {
         tag: (v) => `Nauja versija ${v}`, title: "Atnaujinimas paruoštas", more: (n) => ` (ir dar atnaujinimų: ${n})`,
         have: (cur, more) => `Jūsų versija ${cur}${more}. Kas naujo:`, now: "Atnaujinti dabar", later: "Vėliau, priminti po 2 dienų",
@@ -1796,6 +1923,7 @@ function pageMain() {
     const ev = eventsOn(D.today);
     if (ev.length) parts.push(`<div class="banner info">${ev.map((e) => h(e.title)).join("<br>")}</div>`);
     parts.push(`<section>${nowCard}</section>`);
+    if ((D.news || []).length) parts.push(section(T.news.title, newsPanel(D.news), `<button id="newsclear" style="color:var(--blue);font-weight:600">${h(T.news.clear)}</button>`));
     if (lessons.length) parts.push(section(T.lessonsToday, panel(lessons.map((l) => lessonRow(l, D.today, { compact: true })), ""), h(T.lessonsN(lessons.length))));
 
     // Next school day: what to pack and what's due
@@ -2417,6 +2545,46 @@ function pageMain() {
     if (S.tab === 5) setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 30);
   }
 
+  // ── news: everything a check announced stays here until marked as seen ──
+  const NEWS_ICON = { hw: "📝", grades: "⭐", msgs: "✉️", notes: "🗒" };
+  function newsRow(i, idx) {
+    const r = i.ref || {};
+    const label = i.kind === "notes" ? T.feed[r.note] || T.news.notes : T.news[i.kind];
+    const title = i.kind === "msgs" ? r.subject || "—" : i.kind === "grades" ? `${r.subject || ""}` : r.subject || "";
+    const meta = i.kind === "msgs" ? [r.from, r.fromTitle, r.group ? T.news.group : ""].filter(Boolean).join(", ") : "";
+    const body = i.kind === "hw" ? r.text || "" : i.kind === "notes" ? r.text || "" : i.kind === "grades" ? [r.value, r.type].filter(Boolean).join(", ") : "";
+    const when = i.date && i.kind !== "hw" ? dayName(i.date) : "";
+    return `<div class="row" role="button" data-newsidx="${idx}">
+      <span class="kindic">${NEWS_ICON[i.kind] || "•"}</span>
+      <div class="main">
+        <div class="meta">${h(label)}${when ? `, ${h(when)}` : ""}${i.kind === "hw" && r.due ? `, ${h(T.due(shortDate(r.due)))}` : ""}</div>
+        <div class="title">${h(title)}</div>
+        ${meta ? `<div class="meta">${h(meta)}</div>` : ""}
+        ${body ? `<div class="body">${h(body)}</div>` : ""}
+      </div>
+    </div>`;
+  }
+  const newsPanel = (items) => `<div class="panel newsp">${items.map(newsRow).join("")}</div>`;
+  function openNews(idx) {
+    const i = (D.news || [])[idx];
+    if (!i) return;
+    closeSheet();
+    const r = i.ref || {};
+    if (i.kind === "msgs" && r.id) return openMessage({ id: r.id, typeId: r.typeId || "1" }, { ...r, date: i.date });
+    S.tab = i.kind === "hw" ? 2 : i.kind === "grades" ? 4 : 0;
+    if (i.kind === "hw") S.hwFilter = "all";
+    render();
+    window.scrollTo(0, 0);
+  }
+  function showNewsPopup(n) {
+    const items = (D.news || []).slice(0, n);
+    if (!items.length) return;
+    const sheet = $("#sheet");
+    sheet.innerHTML = `<button class="x" data-close>${h(T.news.ok)}</button><h3>${h(T.news.popup(items.length))}</h3><div class="meta">${h(T.news.tapHint)}</div>
+      <div class="newsp" style="margin-top:12px">${items.map(newsRow).join("")}</div>`;
+    document.body.classList.add("open-sheet");
+  }
+
   // ── update sheet: shown when the Scriptable side finds a newer version on GitHub ──
   window.__showUpdate = (u) => {
     if (!u || document.getElementById("upd")) return;
@@ -2492,8 +2660,13 @@ function pageMain() {
   function render() {
     const unread = (D.messages || []).filter((m) => m.unread && m.date >= addDays(D.today, -6)).length;
     const hwBadge = (D.homework || []).filter((i) => !i.done && i.due && i.due >= addDays(D.today, -7) && i.due <= addDays(D.today, 1)).length;
+    const kids = (D.children && D.children.length ? D.children : [{ key: D.child.key, title: D.child.title, subtitle: D.child.subtitle, active: true }]).slice().sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+    const initials = (n) => String(n || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+    const kidBtn = (k) => `<button class="kid ${k.active ? "on" : ""}" data-kid="${h(k.key)}" aria-label="${h(k.title)}">
+        <span class="av" style="${k.avatar ? `background-image:url('${k.avatar}')` : `background:${color(k.title)}`}">${k.avatar ? "" : h(initials(k.title))}</span>
+        <span class="kn"><b>${h(k.active && D.child.title ? D.child.title : k.title)}</b><small>${h(k.active ? D.child.subtitle || k.subtitle : k.subtitle)}</small></span></button>`;
     const head = `<header class="top">
-      <div class="brand"><svg class="brand-mark" viewBox="0 0 240 240" aria-hidden="true">${D.logo || ""}</svg><div class="who"><b>${h(D.child.title)}</b>${h(D.child.subtitle || "")}</div></div>
+      <div class="kids">${kids.map(kidBtn).join("")}</div>
       <div class="tools">
         ${D.hasAiKey ? `<button class="icon-btn ${S.tab === 5 ? "on" : ""}" data-tab="5" aria-label="ask"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>` : ""}
         <button class="icon-btn" id="refresh" aria-label="refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></button>
@@ -2518,8 +2691,8 @@ function pageMain() {
   }
 
   // ── message sheet ──
-  async function openMessage(ref) {
-    const m = (D.messages || []).find((x) => x.id === ref.id && x.typeId === ref.typeId) || {};
+  async function openMessage(ref, fallback = {}) {
+    const m = (D.messages || []).find((x) => x.id === ref.id && x.typeId === ref.typeId) || { ...fallback };
     const sheet = $("#sheet");
     const head = `<button class="x" data-close>${h(T.close)}</button><h3>${h(m.subject || "")}</h3><div class="meta">${h(m.from || "")}${m.fromTitle ? ", " + h(m.fromTitle) : ""}</div><div class="meta num">${h(m.date ? longDate(m.date) : "")} ${h(m.time || "")}</div>`;
     sheet.innerHTML = `${head}<div class="text" style="color:var(--muted)">${h(T.loading)}</div>`;
@@ -2542,7 +2715,7 @@ function pageMain() {
 
   // ── events ──
   document.addEventListener("click", async (e) => {
-    const el = e.target.closest("button, a, .scrim, [data-toggle]");
+    const el = e.target.closest("button, a, .scrim, [data-toggle], [data-newsidx]");
     if (!el) return;
     if (el.classList.contains("scrim") || el.hasAttribute("data-close")) return closeSheet();
     if (el.dataset.file) {
@@ -2574,6 +2747,19 @@ function pageMain() {
         if (!S.info && !S.preparing && !S.prepError) prepare(false);
       }
       return;
+    }
+    if (el.dataset.kid) {
+      const k = (D.children || []).find((x) => x.key === el.dataset.kid);
+      if (!k || k.active) return call("avatar", { key: el.dataset.kid }).catch(() => {});
+      el.classList.add("busy");
+      document.body.classList.add("switching");
+      return call("child", { key: el.dataset.kid }).catch(() => document.body.classList.remove("switching"));
+    }
+    if (el.dataset.newsidx !== undefined) return openNews(Number(el.dataset.newsidx));
+    if (el.id === "newsclear") {
+      D.news = [];
+      render();
+      return call("newsclear").catch(() => {});
     }
     if (el.hasAttribute("data-scale")) return call("scale", { tab: S.tab }).catch(() => {});
     if (el.id === "memrefresh") return prepare(true);
@@ -2640,7 +2826,15 @@ function pageMain() {
   });
 
   render();
+  if (D.newsPopup) showNewsPopup(D.newsPopup);
+  if (D.switching) document.body.classList.add("switching");
   if (D.update) window.__showUpdate(D.update);
+  // shrink the children row and header while scrolling
+  let compact = false;
+  window.addEventListener("scroll", () => {
+    const c = window.scrollY > 24;
+    if (c !== compact) document.body.classList.toggle("compact", (compact = c));
+  }, { passive: true });
   // keep the "now" card honest while the app stays open
   setInterval(() => {
     if (S.tab === 0 && !document.body.classList.contains("open-sheet")) render();
@@ -3335,24 +3529,65 @@ function isCheckRun() {
 }
 
 const seenPath = (roleKey) => fm.joinPath(fm.documentsDirectory(), `dienynas-plus-seen-${hashKey(roleKey)}.json`);
+const NEWS_MAX_AGE_DAYS = 21; // older items are remembered as seen but never announced as new
+const NEWS_KEEP = 60; // items kept in the in-app "New since last check" list
+
+// Every item carries a stable key (so nothing is announced twice) and a ref to where it lives in the app.
 function newsItems(data) {
   const hw = (data.homework || []).map((i) => ({
+    kind: "hw",
     key: i.lessonId ? `${i.lessonId}|${i.subject}|${i.due}` : `${i.subject}|${i.due}|${(i.text || "").slice(0, 40)}`,
+    date: i.assigned || i.due || "",
     line: `${i.subject}: ${clip(i.text || (i.files || []).map((f) => f.name).join(", "), 70)}${i.due ? ` (${NT().due(shortDay(i.due))})` : ""}`,
+    ref: compact({ subject: i.subject, text: i.text, due: i.due }),
   }));
   const diary = data.diary || {};
   const grades = [
-    ...(diary.grades || []).map((g) => ({ key: `g|${g.date}|${g.subject}|${g.value}|${g.type || ""}`, line: `${g.subject}: ${g.value}${g.type ? ` (${g.type})` : ""}, ${shortDay(g.date)}` })),
-    ...(diary.formatives || []).map((g) => ({ key: `f|${g.date}|${g.subject}|${g.value}|${g.type || ""}`, line: `${g.subject}: ${g.value}${g.type ? ` (${g.type})` : ""}, ${shortDay(g.date)}` })),
+    ...(diary.grades || []).map((g) => ({ kind: "grades", key: `g|${g.date}|${g.subject}|${g.value}|${g.type || ""}`, date: g.date, line: `${g.subject}: ${g.value}${g.type ? ` (${g.type})` : ""}, ${shortDay(g.date)}`, ref: compact({ subject: g.subject, value: g.value, type: g.type }) })),
+    ...(diary.formatives || []).map((g) => ({ kind: "grades", key: `f|${g.date}|${g.subject}|${g.value}|${g.type || ""}`, date: g.date, line: `${g.subject}: ${g.value}${g.type ? ` (${g.type})` : ""}, ${shortDay(g.date)}`, ref: compact({ subject: g.subject, value: g.value, type: g.type }) })),
   ];
-  const msgs = (data.messages || []).map((m) => ({ key: m.sid || `${m.typeId}/${m.id}`, line: `${m.subject || "—"}${m.from ? ` — ${m.from}` : ""}` }));
+  const msgs = (data.messages || []).map((m) => ({
+    kind: "msgs",
+    key: m.sid || `${m.typeId}/${m.id}`,
+    date: m.date,
+    line: `${m.subject || "—"}${m.from ? ` — ${m.from}` : ""}`,
+    ref: compact({ id: m.id, typeId: m.typeId, subject: m.subject, from: m.from, fromTitle: m.fromTitle, time: m.time, group: m.group }),
+  }));
   const notes = (data.feed || [])
     .filter((f) => ["praise", "remark", "comment", "absent", "late"].includes(f.kind))
     .map((f) => ({
-      key: `${f.kind}|${f.id}|${f.date}|${f.subject}`,
+      kind: "notes",
+      // content-based: TAMO's feed items don't always carry an id
+      key: `${f.kind}|${f.lessonDate || f.date}|${f.subject}|${(f.text || "").slice(0, 60)}`,
+      date: f.lessonDate || f.date || "",
       line: `${NT().note[f.kind]}: ${f.subject || ""}${f.text ? ` — ${clip(f.text, 60)}` : ""}${f.lessonDate || f.date ? `, ${shortDay(f.lessonDate || f.date)}` : ""}`,
+      ref: compact({ note: f.kind, subject: f.subject, text: f.text }),
     }));
   return { hw, grades, msgs, notes };
+}
+
+const newsPath = (roleKey) => fm.joinPath(fm.documentsDirectory(), `dienynas-plus-news-${hashKey(roleKey)}.json`);
+function loadNewsList(roleKey) {
+  try {
+    if (roleKey && fm.fileExists(newsPath(roleKey))) return JSON.parse(fm.readString(newsPath(roleKey)));
+  } catch (_) {}
+  return { items: [] };
+}
+// Keeps announced items in the app (Today → New since last check) until marked as seen.
+function rememberNews(roleKey, news) {
+  const fresh = Object.values(news.kinds || {}).flat().map((i) => ({ ...i, at: Date.now() }));
+  if (!roleKey || !fresh.length) return;
+  const cur = loadNewsList(roleKey);
+  const seen = new Set();
+  const items = [...fresh, ...(cur.items || [])].filter((i) => (seen.has(i.key) ? false : seen.add(i.key))).slice(0, NEWS_KEEP);
+  try {
+    fm.writeString(newsPath(roleKey), JSON.stringify({ at: Date.now(), items }));
+  } catch (_) {}
+}
+function clearNewsList(roleKey) {
+  try {
+    if (fm.fileExists(newsPath(roleKey))) fm.remove(newsPath(roleKey));
+  } catch (_) {}
 }
 
 // Compares with what was seen last time and remembers the new state. First run only records a baseline.
@@ -3368,7 +3603,8 @@ function findNews(data) {
   let total = 0;
   for (const k of Object.keys(items)) {
     const before = new Set((seen && seen[k]) || []);
-    kinds[k] = seen ? items[k].filter((i) => !before.has(i.key)) : [];
+    const oldest = addDays(data.today || todayV(), -NEWS_MAX_AGE_DAYS);
+    kinds[k] = seen ? items[k].filter((i) => !before.has(i.key) && (!i.date || i.date >= oldest)) : [];
     total += kinds[k].length;
   }
   const next = { at: Date.now() };
@@ -3443,6 +3679,7 @@ async function runCheck() {
     return say(msg);
   }
   const news = findNews(data);
+  rememberNews(data.child.key, news);
   if (news.first) return say(T.started);
   if (!news.total) return say(T.nothing);
   const body = newsText(news);
@@ -3570,6 +3807,8 @@ class App {
       gradeMax: gradeMaxFor(data.child && data.child.key),
       hasAiKey: !!aiKey(),
       update: this.pendingUpdate, // re-offered after every reload of the main page, until answered
+      news: loadNewsList(data.child && data.child.key).items || [],
+      children: childrenForPage(data.child && data.child.key),
       ...extra,
       lang: LANG(), version: VERSION, look: lookState(), logo: LOGO_PARTS,
       usageAsk: usageAvailable() && !settings.usageAsked && !settings.shareUsage,
@@ -3624,12 +3863,10 @@ class App {
       this.data = data;
       startLog(`TAMO answered in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
       await afterSplash();   // the launch screen plays out over the cached diary first
-      await this.show(data);
-      // pop up anything new since the last run (scheduled check or app launch)
-      if (announce) {
-        const news = findNews(data);
-        if (news.total) await showNewsAlert(news, data, false);
-      }
+      // anything new since the last run (scheduled check, app start or Refresh) pops up in the page and stays on Today
+      const news = findNews(data);
+      rememberNews(data.child.key, news);
+      await this.show(data, { newsPopup: announce && news.total > 0 ? news.total : 0 });
     } catch (e) {
       startLog(`TAMO didn't answer after ${((Date.now() - t0) / 1000).toFixed(1)} s${e && e.badLogin ? " (sign-in refused)" : ""}`);   // no error text: it could name a child or a server detail
       await afterSplash();
@@ -3753,9 +3990,18 @@ class App {
         case "usage-event":   // what happens on the page: only this event, with a fixed tab name
           if (params.e === "tab_viewed") track("tab_viewed", { tab: ["today", "schedule", "homework", "messages", "grades", "ask"].includes(params.tab) ? params.tab : "other" });
           return this.reply(q.id, true, {});
+        case "child":
+          await this.reply(q.id, true, {});
+          return this.switchChild(String(params.key || ""));
+        case "avatar":
+          await this.reply(q.id, true, {});
+          return this.avatarMenu(String(params.key || ""));
+        case "newsclear":
+          clearNewsList((this.data && this.data.child.key) || currentRoleKey());
+          return this.reply(q.id, true, {});
         case "refresh":
           await this.reply(q.id, true, {});
-          await this.reload(); track("data_refreshed");
+          await this.reload(true); track("data_refreshed");
           return;
         case "relogin":
           if (await askCredentials()) {
@@ -3842,15 +4088,52 @@ class App {
     await Safari.openInApp(url, false);
   }
 
+  // Show the other child's saved data at once, then fetch fresh data on the same sign-in.
+  async switchChild(key) {
+    if (!key || (this.data && this.data.child.key === key) || this.busy) return;
+    track("child_switched");
+    this.chatState = null;
+    const cached = readCache(key);
+    if (cached) {
+      this.data = cached;
+      await this.show(cached, { warnings: [], switching: true });
+    }
+    try {
+      await this.api.switchRole(key);
+    } catch (e) {
+      this.api = new Tamo(true);
+    }
+    return this.reload(true);
+  }
+
+  async avatarMenu(key) {
+    const kid = knownChildren().find((k) => k.key === key) || { key, title: (this.data && this.data.child.title) || "" };
+    const a = new Alert();
+    a.title = kid.title || t("photoTitle");
+    const has = fm.fileExists(avatarPath(key));
+    a.addAction(t(has ? "photoChange" : "photoChoose"));
+    if (has) a.addDestructiveAction(t("photoRemove"));
+    a.addCancelAction(t("cancel"));
+    const i = await a.presentSheet();
+    if (i < 0) return;
+    if (i === 0 && !(await chooseAvatar(key))) return;
+    if (i === 1 && has) removeAvatar(key);
+    const data = this.data || readCache();
+    if (data) await this.show(data, { warnings: [] });
+  }
+
   // Account actions from Settings (they used to be the ••• menu).
   async account(act) {
     if (act === "switchChild") {
-      track("child_switched");
-      if (Keychain.contains(K.role)) Keychain.remove(K.role);
-      forgetSession();
-      clearCache();
-      this.api = new Tamo(true);
-      return this.reload();
+      const kids = knownChildren();
+      const cur = (this.data && this.data.child.key) || currentRoleKey();
+      const pick = new Alert();
+      pick.title = t("switchChild");
+      kids.forEach((k) => pick.addAction(`${k.title}${k.subtitle ? ` — ${k.subtitle}` : ""}${k.key === cur ? "  ✓" : ""}`));
+      pick.addCancelAction(t("cancel"));
+      const j = await pick.presentSheet();
+      if (j >= 0) return this.switchChild(kids[j].key);
+      return;
     }
     if (act === "web") return Safari.open("https://dienynas.tamo.lt/");
     if (act === "login") {
@@ -3868,6 +4151,8 @@ class App {
       [K.user, K.pass, K.role, K.session].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
       Object.keys(PROVIDERS).forEach(removeKey);
       deleteAllChats();
+      removeDocs(/^dienynas-plus-(avatar|news)-.*$/);   // children's photos and saved news go with the account
+      if (Keychain.contains(K.kids)) Keychain.remove(K.kids);
       try {
         fm.listContents(fm.documentsDirectory())
           .filter((n) => /^dienynas-plus-seen-.*\.json$/.test(n))
