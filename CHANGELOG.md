@@ -2,6 +2,23 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.14.0 (2026-11-01): Log out any time
+
+- 🚪 **Quick log out**: Tap the selected child's photo at the top and choose Log out.
+- 🧹 **Leaves nothing behind**: Sign-in, children's data and photos, chats and AI keys are removed from the phone.
+- 🔑 **Sign straight back in**: A Sign in button right after logging out; no need to restart the script.
+
+**Changes**
+
+- Log out in the selected child's menu (tap their photo), with a confirmation that says what is removed
+- Settings › Account: Sign out and forget password is now Log out, with what it removes spelled out
+- After logging out, a Sign in button signs in again in place
+- Logging out also resets the add-photos suggestion for the next account
+
+**Fixes**
+
+- Signing out ended on "Run the script again to sign in" with no way forward
+
 ## 1.13.0 (2026-11-01): Room for every child
 
 - 👨‍👩‍👧‍👦 **Up to four children**: With several children the top shows just their photos, so up to four fit.

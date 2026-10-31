@@ -4,6 +4,52 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.14.0",
+      "date": "2026-11-01",
+      "title": "Log out any time",
+      "lt": {
+        "title": "Atsijunkite bet kada"
+      },
+      "highlights": [
+        {
+          "icon": "🚪",
+          "title": "Quick log out",
+          "text": "Tap the selected child's photo at the top and choose Log out.",
+          "lt": {
+            "title": "Greitas atsijungimas",
+            "text": "Paspauskite pasirinkto vaiko nuotrauką viršuje ir pasirinkite „Atsijungti“."
+          }
+        },
+        {
+          "icon": "🧹",
+          "title": "Leaves nothing behind",
+          "text": "Sign-in, children's data and photos, chats and AI keys are removed from the phone.",
+          "lt": {
+            "title": "Nieko nelieka",
+            "text": "Iš telefono pašalinamas prisijungimas, vaikų duomenys ir nuotraukos, pokalbiai ir DI raktai."
+          }
+        },
+        {
+          "icon": "🔑",
+          "title": "Sign straight back in",
+          "text": "A Sign in button right after logging out; no need to restart the script.",
+          "lt": {
+            "title": "Iš karto prisijunkite vėl",
+            "text": "Mygtukas „Prisijungti“ iš karto po atsijungimo, nereikia paleisti skripto iš naujo."
+          }
+        }
+      ],
+      "changes": [
+        "Log out in the selected child's menu (tap their photo), with a confirmation that says what is removed",
+        "Settings › Account: Sign out and forget password is now Log out, with what it removes spelled out",
+        "After logging out, a Sign in button signs in again in place",
+        "Logging out also resets the add-photos suggestion for the next account"
+      ],
+      "fixes": [
+        "Signing out ended on \"Run the script again to sign in\" with no way forward"
+      ]
+    },
+    {
       "version": "1.13.0",
       "date": "2026-11-01",
       "title": "Room for every child",

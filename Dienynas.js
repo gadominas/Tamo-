@@ -30,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.13.0';
+const VERSION = '1.14.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -1171,7 +1171,10 @@ const NATIVE_TEXT = {
     openWeb: "Open TAMO website",
     changeLogin: "Change sign-in details",
     signOut: "Sign out and forget password",
-    signedOut: "Signed out. Run the script again to sign in.",
+    signedOut: "You're logged out. Your TAMO sign-in, the children's data and photos, Ask chats and AI keys were removed from this phone.",
+    logOut: "Log out",
+    logOutAsk: "Log out of TAMO?",
+    logOutWhat: "This removes your TAMO sign-in, the children's saved data and photos, Ask chats and AI keys from this phone. Appearance and language stay.",
     badLogin: "TAMO didn't accept the sign-in details. Enter them again?",
     tryAgain: "Try again",
     save: "Save",
@@ -1205,7 +1208,10 @@ const NATIVE_TEXT = {
     openWeb: "Atidaryti TAMO svetainę",
     changeLogin: "Keisti prisijungimo duomenis",
     signOut: "Atsijungti ir pamiršti slaptažodį",
-    signedOut: "Atsijungta. Paleiskite skriptą iš naujo, kad prisijungtumėte.",
+    signedOut: "Atsijungėte. TAMO prisijungimas, vaikų duomenys ir nuotraukos, pokalbiai ir DI raktai pašalinti iš šio telefono.",
+    logOut: "Atsijungti",
+    logOutAsk: "Atsijungti nuo TAMO?",
+    logOutWhat: "Iš šio telefono bus pašalintas TAMO prisijungimas, išsaugoti vaikų duomenys ir nuotraukos, pokalbiai ir DI raktai. Išvaizda ir kalba išlieka.",
     badLogin: "TAMO nepriėmė prisijungimo duomenų. Įvesti iš naujo?",
     tryAgain: "Bandyti dar kartą",
     save: "Išsaugoti",
@@ -2291,7 +2297,7 @@ function pageMain() {
       layouts: ["Comfortable", "Compact", "Tiny"], sizes: ["Small", "Default", "Large", "Larger"], fonts: ["Sans serif", "Serif"],
       general: "General", language: "Language", languageHelp: "The app redraws in this language when you close Settings", grades: "Grades", scale: (n) => `Grade scale for ${n}`, scaleHelp: "Averages, bars and Ask use it", other: "Other…",
       ask: "Ask", aiRow: "Keys, models and token usage", aiNone: "Add a Claude or OpenAI key for ✨ Ask", aiBtn: "AI settings",
-      account: "Account", switchChild: "Switch child", web: "Open TAMO website", login: "Change sign-in details", signout: "Sign out and forget password", signoutHelp: "Keeps these settings", confirm: "Confirm",
+      account: "Account", switchChild: "Switch child", web: "Open TAMO website", login: "Change sign-in details", signout: "Log out", signoutHelp: "Removes your TAMO sign-in, the children's data and photos, Ask chats and AI keys from this phone. Appearance and language stay.", confirm: "Confirm",
       updates: "Updates", offer: "Offer new versions", offerHelp: (v) => `You have Dienynas+ ${v}. “Later” waits two days.`, check: "Check for updates now", checkBtn: "Check", checking: "Checking…",
       startLog: "Start-up log", startLogHelp: "What happened the last times Dienynas+ opened", show: "Show", hide: "Hide", nothingLogged: "Nothing logged yet.",
       reset: "Reset", original: "original", changed: (n) => `${n} setting${n === 1 ? "" : "s"} changed`, none: "All settings are at their original values", resetAll: "Reset all", confirmReset: "Confirm reset",
@@ -2303,7 +2309,7 @@ function pageMain() {
       layouts: ["Erdvus", "Glaustas", "Mažytis"], sizes: ["Mažas", "Įprastas", "Didelis", "Didesnis"], fonts: ["Be serifų", "Su serifais"],
       general: "Bendra", language: "Kalba", languageHelp: "Uždarius nustatymus programa persipieš šia kalba", grades: "Pažymiai", scale: (n) => `Vertinimo skalė: ${n}`, scaleHelp: "Ja remiasi vidurkiai, juostos ir „Klausk“", other: "Kita…",
       ask: "Klausk", aiRow: "Raktai, modeliai ir žetonų naudojimas", aiNone: "Pridėkite Claude arba OpenAI raktą „Klausk“ funkcijai", aiBtn: "AI nustatymai",
-      account: "Paskyra", switchChild: "Keisti vaiką", web: "Atidaryti TAMO svetainę", login: "Keisti prisijungimo duomenis", signout: "Atsijungti ir pamiršti slaptažodį", signoutHelp: "Šie nustatymai išlieka", confirm: "Patvirtinti",
+      account: "Paskyra", switchChild: "Keisti vaiką", web: "Atidaryti TAMO svetainę", login: "Keisti prisijungimo duomenis", signout: "Atsijungti", signoutHelp: "Pašalina TAMO prisijungimą, vaikų duomenis ir nuotraukas, pokalbius ir DI raktus iš šio telefono. Išvaizda ir kalba išlieka.", confirm: "Patvirtinti",
       updates: "Atnaujinimai", offer: "Siūlyti naujas versijas", offerHelp: (v) => `Jūsų versija: Dienynas+ ${v}. „Vėliau“ palaukia dvi dienas.`, check: "Tikrinti atnaujinimus dabar", checkBtn: "Tikrinti", checking: "Tikrinama…",
       startLog: "Paleidimo žurnalas", startLogHelp: "Kas vyko paskutinius kartus atidarant Dienynas+", show: "Rodyti", hide: "Slėpti", nothingLogged: "Kol kas nieko neužrašyta.",
       reset: "Atstatyti", original: "pradinė", changed: (n) => `Pakeista nustatymų: ${n}`, none: "Visi nustatymai pradiniai", resetAll: "Atstatyti viską", confirmReset: "Patvirtinti",
@@ -2799,7 +2805,7 @@ function pageMain() {
     }
     if (el.dataset.kid) {
       const k = (D.children || []).find((x) => x.key === el.dataset.kid);
-      if (!k || k.active) return call("avatar", { key: el.dataset.kid }).catch(() => {});
+      if (!k || k.active) return call("avatar", { key: el.dataset.kid, account: true }).catch(() => {});
       el.classList.add("busy");
       document.body.classList.add("switching");
       return call("child", { key: el.dataset.kid }).catch(() => document.body.classList.remove("switching"));
@@ -4045,7 +4051,7 @@ class App {
           return this.switchChild(String(params.key || ""));
         case "avatar":
           await this.reply(q.id, true, {});
-          return this.avatarMenu(String(params.key || ""));
+          return this.avatarMenu(String(params.key || ""), !!params.account);
         case "photos-later":   // "Not now" on the add-photos card: don't suggest it again
           settings.photosAsked = true;
           saveSettings();
@@ -4058,10 +4064,10 @@ class App {
           await this.reload(true); track("data_refreshed");
           return;
         case "relogin":
-          if (await askCredentials()) {
-            forgetSession();
-            this.api = new Tamo(true);
-          }
+          if (!(await askCredentials())) return;   // cancelled: stay on the current screen
+          forgetSession();
+          this.api = new Tamo(true);
+          this.chatState = null;
           return this.reload();
         // Settings (app-blueprints · settings): each change is applied and saved at once; the reply is the fresh state.
         case "settings-get":
@@ -4160,18 +4166,30 @@ class App {
     return this.reload(true);
   }
 
-  async avatarMenu(key) {
+  // The selected child's menu (tap their photo at the top): photo, and Log out — the account behind the photo.
+  async avatarMenu(key, withAccount = false) {
     const kid = knownChildren().find((k) => k.key === key) || { key, title: (this.data && this.data.child.title) || "" };
     const a = new Alert();
     a.title = kid.title || t("photoTitle");
     const has = fm.fileExists(avatarPath(key));
-    a.addAction(t(has ? "photoChange" : "photoChoose"));
-    if (has) a.addDestructiveAction(t("photoRemove"));
+    const acts = [];
+    a.addAction(t(has ? "photoChange" : "photoChoose")); acts.push("photo");
+    if (has) { a.addDestructiveAction(t("photoRemove")); acts.push("remove"); }
+    if (withAccount) { a.addDestructiveAction(t("logOut")); acts.push("logout"); }
     a.addCancelAction(t("cancel"));
     const i = await a.presentSheet();
     if (i < 0) return;
-    if (i === 0 && !(await chooseAvatar(key))) return;
-    if (i === 1 && has) removeAvatar(key);
+    if (acts[i] === "logout") {
+      const c = new Alert();
+      c.title = t("logOutAsk");
+      c.message = t("logOutWhat");
+      c.addDestructiveAction(t("logOut"));
+      c.addCancelAction(t("cancel"));
+      if ((await c.presentAlert()) === 0) return this.logout();
+      return;
+    }
+    if (acts[i] === "photo" && !(await chooseAvatar(key))) return;
+    if (acts[i] === "remove") removeAvatar(key);
     const data = this.data || readCache();
     if (data) await this.show(data, { warnings: [] });
   }
@@ -4201,7 +4219,13 @@ class App {
       }
       return;
     }
-    if (act === "signout") {   // keeps settings.json (appearance, language, grade scales), as 1.5 kept them
+    if (act === "signout") return this.logout();
+  }
+
+  // Log out: forget the TAMO sign-in and everything about the children on this phone; keeps settings.json
+  // (appearance, language, grade scales). Ends on a Sign in screen, so nobody has to restart the script.
+  async logout() {
+    {
       [K.user, K.pass, K.role, K.session].forEach((k) => Keychain.contains(k) && Keychain.remove(k));
       Object.keys(PROVIDERS).forEach(removeKey);
       deleteAllChats();
@@ -4215,7 +4239,11 @@ class App {
       this.chatState = null;
       clearCache();
       saveWidget({ children: {} });   // the widget forgets the children too
-      return this.wv.loadHTML(messageHTML(APP_NAME, t("signedOut")));
+      settings.photosAsked = false;   // the next account gets the add-photos suggestion again
+      saveSettings();
+      this.data = null;
+      this.api = new Tamo(true);
+      return this.wv.loadHTML(messageHTML(APP_NAME, t("signedOut"), [{ label: t("signIn"), action: "relogin" }]));
     }
   }
 }
