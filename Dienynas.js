@@ -30,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.12.1';
+const VERSION = '1.13.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -154,6 +154,7 @@ const write = (n, v) => {
 const settings = {
   lang: "en", checkUpdates: true,   // offer new versions from GitHub (asks again 2 days after "Later")
   shareUsage: false, usageAsked: false,  // anonymous usage counts: off until the person agrees
+  photosAsked: false,   // several children: the "add a photo for each child" card was answered (Not now)
   theme: "auto", density: "comfortable", font: "sans", textSize: 1,
   gradeScales: {},   // top grade per child: { roleKey: 10 }
   cfg: {},
@@ -1332,6 +1333,22 @@ header.top{position:sticky;top:0;z-index:6;display:flex;align-items:center;justi
 .kn b{font-family:var(--display);font-size:calc(15px * var(--ts));font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
 .kn small{font-size:calc(12.5px * var(--ts));color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw;max-height:3em;transition:max-height .2s ease,opacity .2s ease}
 .kid:not(.on) .kn{display:none}
+/* several children: photos only, three or four fit beside the buttons */
+.kids.multi{gap:8px}
+.kids.multi .kid{flex-direction:column;gap:3px;width:44px;align-items:center}
+.kids.multi .av{width:40px;height:40px;font-size:15px}
+.kids.multi .kid:not(.on) .av{width:40px;height:40px;font-size:15px;opacity:.55}
+.kl{font-size:calc(11px * var(--ts));font-weight:600;color:var(--muted);max-width:50px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;transition:opacity .2s ease}
+.kid.on .kl{color:var(--ink)}
+.compact .kl{display:none}
+.compact .kids.multi .av,.compact .kids.multi .kid:not(.on) .av{width:30px;height:30px;font-size:12px}
+.photoask{padding:14px}
+.photoask .title{font-weight:700}
+.pa-row{display:flex;gap:14px;margin:12px 0 10px;overflow-x:auto;padding:4px 2px}
+.pa-kid{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:64px}
+.pa-kid .av{width:54px;height:54px;font-size:19px}
+.pa-kid b{font-size:calc(13px * var(--ts))}
+.pa-kid small{font-size:calc(12px * var(--ts));color:var(--blue);font-weight:600}
 .compact .av{width:30px;height:30px;font-size:12px}
 .compact .kid:not(.on) .av{width:26px;height:26px;font-size:11px}
 .compact .kn small{max-height:0;opacity:0}
@@ -1695,6 +1712,7 @@ function pageMain() {
       gathering: "Pulling everything from TAMO…", gatherFailed: (e) => `Couldn't pull the data: ${e}`,
       stages: { schedule: "Lessons", homework: "Homework", grades: "Grades and attendance", calendar: "School calendar", messages: "Messages" },
       scaleLbl: (m) => `Scale 1–${m}`,
+      photos: { title: "Add a photo for each child", text: "With several children, photos keep the top of the screen tidy and show whose diary is open. They stay on this phone.", add: "Add photo", done: "✓ Added", later: "Not now" },
       news: { title: "New since last check", popup: (n) => `${n} new in TAMO`, clear: "Mark all as seen", ok: "OK", hw: "Homework", grades: "Grade", msgs: "Message", notes: "Teacher note", group: "class group", tapHint: "Tap an item to open it." },
       upd: {
         tag: (v) => `New version ${v}`, title: "An update is ready", more: (n) => ` (and ${n} more update${n > 1 ? "s" : ""})`,
@@ -1741,6 +1759,7 @@ function pageMain() {
       gathering: "Renkami visi TAMO duomenys…", gatherFailed: (e) => `Nepavyko surinkti duomenų: ${e}`,
       stages: { schedule: "Pamokos", homework: "Namų darbai", grades: "Pažymiai ir lankomumas", calendar: "Mokyklos kalendorius", messages: "Žinutės" },
       scaleLbl: (m) => `Skalė 1–${m}`,
+      photos: { title: "Pridėkite kiekvieno vaiko nuotrauką", text: "Kai vaikų keli, nuotraukos viršuje užima mažai vietos ir parodo, kieno dienynas atidarytas. Jos lieka tik šiame telefone.", add: "Pridėti", done: "✓ Pridėta", later: "Ne dabar" },
       news: { title: "Nauja nuo paskutinio patikrinimo", popup: (n) => `TAMO naujienos: ${n}`, clear: "Pažymėti kaip peržiūrėtas", ok: "Gerai", hw: "Namų darbai", grades: "Pažymys", msgs: "Žinutė", notes: "Mokytojo įrašas", group: "klasės grupė", tapHint: "Paspauskite, kad atidarytumėte." },
       upd: {
         tag: (v) => `Nauja versija ${v}`, title: "Atnaujinimas paruoštas", more: (n) => ` (ir dar atnaujinimų: ${n})`,
@@ -1922,6 +1941,7 @@ function pageMain() {
     const parts = [];
     const ev = eventsOn(D.today);
     if (ev.length) parts.push(`<div class="banner info">${ev.map((e) => h(e.title)).join("<br>")}</div>`);
+    parts.push(photoCard());
     parts.push(`<section>${nowCard}</section>`);
     if ((D.news || []).length) parts.push(section(T.news.title, newsPanel(D.news), `<button id="newsclear" style="color:var(--blue);font-weight:600">${h(T.news.clear)}</button>`));
     if (lessons.length) parts.push(section(T.lessonsToday, panel(lessons.map((l) => lessonRow(l, D.today, { compact: true })), ""), h(T.lessonsN(lessons.length))));
@@ -2545,6 +2565,25 @@ function pageMain() {
     if (S.tab === 5) setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 30);
   }
 
+  // ── children: names and the first-launch "add a photo for each child" card ──
+  const initials = (n) => String(n || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const firstName = (n) => String(n || "").trim().split(/[\s-]+/)[0] || "?";
+  function photoCard() {
+    const kids = D.children || [];
+    if (kids.length < 2 || D.photosAsked || kids.every((k) => k.avatar)) return "";
+    const P = T.photos;
+    return `<section><div class="panel photoask">
+      <div class="title">${h(P.title)}</div>
+      <div class="meta">${h(P.text)}</div>
+      <div class="pa-row">${kids
+        .map((k) => `<button class="pa-kid" data-photo="${h(k.key)}" aria-label="${h(k.title)}">
+          <span class="av" style="${k.avatar ? `background-image:url('${k.avatar}')` : `background:${color(k.title)}`}">${k.avatar ? "" : h(initials(k.title))}</span>
+          <b>${h(firstName(k.title))}</b><small>${h(k.avatar ? P.done : P.add)}</small></button>`)
+        .join("")}</div>
+      <button class="lnk" id="photoslater">${h(P.later)}</button>
+    </div></section>`;
+  }
+
   // ── news: everything a check announced stays here until marked as seen ──
   const NEWS_ICON = { hw: "📝", grades: "⭐", msgs: "✉️", notes: "🗒" };
   function newsRow(i, idx) {
@@ -2660,13 +2699,17 @@ function pageMain() {
   function render() {
     const unread = (D.messages || []).filter((m) => m.unread && m.date >= addDays(D.today, -6)).length;
     const hwBadge = (D.homework || []).filter((i) => !i.done && i.due && i.due >= addDays(D.today, -7) && i.due <= addDays(D.today, 1)).length;
-    const kids = (D.children && D.children.length ? D.children : [{ key: D.child.key, title: D.child.title, subtitle: D.child.subtitle, active: true }]).slice().sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
-    const initials = (n) => String(n || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-    const kidBtn = (k) => `<button class="kid ${k.active ? "on" : ""}" data-kid="${h(k.key)}" aria-label="${h(k.title)}">
-        <span class="av" style="${k.avatar ? `background-image:url('${k.avatar}')` : `background:${color(k.title)}`}">${k.avatar ? "" : h(initials(k.title))}</span>
-        <span class="kn"><b>${h(k.active && D.child.title ? D.child.title : k.title)}</b><small>${h(k.active ? D.child.subtitle || k.subtitle : k.subtitle)}</small></span></button>`;
+    const kids = D.children && D.children.length ? D.children : [{ key: D.child.key, title: D.child.title, subtitle: D.child.subtitle, active: true }];
+    const multi = kids.length > 1;
+    const kidBtn = (k) => {
+      const avatar = `<span class="av" style="${k.avatar ? `background-image:url('${k.avatar}')` : `background:${color(k.title)}`}">${k.avatar ? "" : h(initials(k.title))}</span>`;
+      // several children: just the photos (same order every time); without a photo, initials and a short first name
+      if (multi) return `<button class="kid ${k.active ? "on" : ""}" data-kid="${h(k.key)}" aria-label="${h(k.title)}">${avatar}${k.avatar ? "" : `<span class="kl">${h(firstName(k.title))}</span>`}</button>`;
+      return `<button class="kid on" data-kid="${h(k.key)}" aria-label="${h(k.title)}">${avatar}
+        <span class="kn"><b>${h(D.child.title || k.title)}</b><small>${h(D.child.subtitle || k.subtitle)}</small></span></button>`;
+    };
     const head = `<header class="top">
-      <div class="kids">${kids.map(kidBtn).join("")}</div>
+      <div class="kids ${multi ? "multi" : ""}">${kids.map(kidBtn).join("")}</div>
       <div class="tools">
         ${D.hasAiKey ? `<button class="icon-btn ${S.tab === 5 ? "on" : ""}" data-tab="5" aria-label="ask"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>` : ""}
         <button class="icon-btn" id="refresh" aria-label="refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg></button>
@@ -2747,6 +2790,12 @@ function pageMain() {
         if (!S.info && !S.preparing && !S.prepError) prepare(false);
       }
       return;
+    }
+    if (el.dataset.photo) return call("avatar", { key: el.dataset.photo }).catch(() => {});
+    if (el.id === "photoslater") {
+      D.photosAsked = true;
+      render();
+      return call("photos-later").catch(() => {});
     }
     if (el.dataset.kid) {
       const k = (D.children || []).find((x) => x.key === el.dataset.kid);
@@ -3812,6 +3861,7 @@ class App {
       ...extra,
       lang: LANG(), version: VERSION, look: lookState(), logo: LOGO_PARTS,
       usageAsk: usageAvailable() && !settings.usageAsked && !settings.shareUsage,
+      photosAsked: !!settings.photosAsked,
     };
   }
 
@@ -3996,6 +4046,10 @@ class App {
         case "avatar":
           await this.reply(q.id, true, {});
           return this.avatarMenu(String(params.key || ""));
+        case "photos-later":   // "Not now" on the add-photos card: don't suggest it again
+          settings.photosAsked = true;
+          saveSettings();
+          return this.reply(q.id, true, {});
         case "newsclear":
           clearNewsList((this.data && this.data.child.key) || currentRoleKey());
           return this.reply(q.id, true, {});

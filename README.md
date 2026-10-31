@@ -37,7 +37,7 @@ A faster, cleaner way to follow your child's school day in the TAMO dienynas, th
 - **Schedule.** The week with lessons per day; tap a lesson for its teacher, topic, homework, attachments and subject average.
 - **Messages.** A bar chart of the last 7 days with the unread part in yellow, messages grouped by day, and each message in a sheet.
 - **Grades.** Subject averages for the last 30 days on your school's grade scale (1–10, 1–7 or any other), recent grades, formative assessments and attendance.
-- **Children at the top.** Each child's photo or initials sits in the header; tap one to switch. The header shrinks as you scroll.
+- **Children at the top.** With several children, the header shows just their round photos (initials and a short first name until a photo is added), so up to four fit; tap one to switch. The header shrinks as you scroll.
 - **🔔 Scheduled checks.** Run it from Shortcuts to be told about new homework, grades, messages and teacher notes; everything announced stays on Today until you mark it as seen.
 - **Lithuanian and English.** The interface, the widget and the alerts follow the language set in Settings.
 - **Home Screen widget.** The lesson now or next, homework due tomorrow, today's messages and the rest of the day, without grades or message text.
@@ -53,7 +53,7 @@ A faster, cleaner way to follow your child's school day in the TAMO dienynas, th
 </p>
 <p align="center">
   <img src="docs/screenshots/07-lithuanian.png" width="31%" alt="Today screen in Lithuanian: what to prepare for tomorrow, with a maths test flagged and the homework due">
-  <img src="docs/screenshots/08-children.png" width="31%" alt="Schedule scrolled down: the header has shrunk to the selected child's photo and name, with a second child's initials beside it">
+  <img src="docs/screenshots/08-children.png" width="31%" alt="Today with two children at the top as round photos, and a card suggesting a photo for the child who has none yet">
   <img src="docs/screenshots/09-launch.png" width="31%" alt="Launch screen: the Dienynas+ calendar logo drawing itself above the name">
 </p>
 <p align="center">
@@ -185,7 +185,7 @@ Checks cover the child currently selected in the app. Network hiccups in the bac
 
 ### Several children, offline, and the rest
 
-- **Several children on one account:** every child sits at the top of the screen as a round photo, or their initials. Tap another child to switch straight away, on the same sign-in: their last data appears at once while fresh data loads. Tap the selected child to **choose a photo** from your album (it's cropped to a circle and kept only on the phone), change it or remove it. The header stays on top and shrinks as you scroll. Grade scale, ✨ Ask conversations and new-item alerts are kept per child. **Settings › Account › Switch child** works too.
+- **Several children on one account:** every child sits at the top of the screen as a round photo; until a photo is added, their initials with a short first name underneath. Up to four children fit beside the buttons, always in the same order. Tap another child to switch straight away, on the same sign-in: their last data appears at once while fresh data loads. The first time, a card on Today suggests **adding a photo for each child**; tap a child there, or tap the selected child at the top, to **choose a photo** from your album (it's cropped to a circle and kept only on the phone), change it or remove it. **Not now** hides the card for good. The header stays on top and shrinks as you scroll. Grade scale, ✨ Ask conversations and new-item alerts are kept per child. **Settings › Account › Switch child** works too.
 - **Works offline.** The last loaded data is shown straight away and refreshed in the background. If TAMO can't be reached, the saved data stays on screen with a note saying when it's from.
 - **Lithuanian and English** interface, switchable in **Settings › General**.
 - **Launch screen.** Dienynas+ opens on its logo for 2.4 seconds: the calendar draws itself, then "Messages. Homework. Calm." ("Žinutės. Užduotys. Ramybė." in Lithuanian). Tap to skip; with Reduce Motion it appears without movement. It is the shared [launch-screen](https://github.com/gadominas/app-blueprints/blob/main/blueprints/launch-screen.md) blueprint, so all the apps start the same way.

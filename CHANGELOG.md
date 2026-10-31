@@ -2,6 +2,22 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.13.0 (2026-11-01): Room for every child
+
+- 👨‍👩‍👧‍👦 **Up to four children**: With several children the top shows just their photos, so up to four fit.
+- 🖼️ **Photos on first launch**: A card on Today helps you add a photo for each child the first time.
+- 🔤 **Short names until then**: A child without a photo shows initials and a short first name.
+
+**Changes**
+
+- Several children: the header shows only round photos, in a fixed order; children without a photo show initials and their first name; up to four fit beside the buttons at 375 px
+- Add a photo for each child: a card on Today the first time there are several children and some lack a photo; tap a child to pick one; Not now hides it for good
+- One child: the header still shows the photo with the full name and class
+
+**Fixes**
+
+- Long names pushed the other children's photos off the header or squeezed them
+
 ## 1.12.1 (2026-11-01): Rounder photos
 
 - ⭕ **Whole photo ring**: The selected child's photo and its ring now show as a full circle.

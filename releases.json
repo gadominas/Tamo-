@@ -4,6 +4,51 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.13.0",
+      "date": "2026-11-01",
+      "title": "Room for every child",
+      "lt": {
+        "title": "Vietos visiems vaikams"
+      },
+      "highlights": [
+        {
+          "icon": "👨‍👩‍👧‍👦",
+          "title": "Up to four children",
+          "text": "With several children the top shows just their photos, so up to four fit.",
+          "lt": {
+            "title": "Iki keturių vaikų",
+            "text": "Kai vaikų keli, viršuje rodomos tik jų nuotraukos, tad telpa iki keturių."
+          }
+        },
+        {
+          "icon": "🖼️",
+          "title": "Photos on first launch",
+          "text": "A card on Today helps you add a photo for each child the first time.",
+          "lt": {
+            "title": "Nuotraukos iš pat pradžių",
+            "text": "Kortelė skiltyje „Šiandien“ padeda iš karto pridėti kiekvieno vaiko nuotrauką."
+          }
+        },
+        {
+          "icon": "🔤",
+          "title": "Short names until then",
+          "text": "A child without a photo shows initials and a short first name.",
+          "lt": {
+            "title": "Trumpi vardai iki tol",
+            "text": "Vaikas be nuotraukos rodomas su inicialais ir trumpu vardu."
+          }
+        }
+      ],
+      "changes": [
+        "Several children: the header shows only round photos, in a fixed order; children without a photo show initials and their first name; up to four fit beside the buttons at 375 px",
+        "Add a photo for each child: a card on Today the first time there are several children and some lack a photo; tap a child to pick one; Not now hides it for good",
+        "One child: the header still shows the photo with the full name and class"
+      ],
+      "fixes": [
+        "Long names pushed the other children's photos off the header or squeezed them"
+      ]
+    },
+    {
       "version": "1.12.1",
       "date": "2026-11-01",
       "title": "Rounder photos",

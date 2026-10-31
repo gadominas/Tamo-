@@ -284,7 +284,7 @@ module.exports = {
   settle: 3900,   // the launch screen (2.9 s), then the page with fresh TAMO data
   fixtures: (shot) => ({
     files: Object.assign({
-      [DOCS + '/DienynasPlus/settings.json']: { lang: shot.lt ? 'lt' : 'en', checkUpdates: true, theme: 'auto', density: 'comfortable', font: 'sans', textSize: 1, gradeScales: {}, cfg: {}, usageAsked: true },
+      [DOCS + '/DienynasPlus/settings.json']: { lang: shot.lt ? 'lt' : 'en', checkUpdates: true, theme: 'auto', density: 'comfortable', font: 'sans', textSize: 1, gradeScales: {}, cfg: {}, usageAsked: true, photosAsked: !shot.photoCard },
       [LOCAL + '/dienynas-plus-ai-settings.json']: { aiProvider: 'anthropic', ai: true, models: { anthropic: { at: NOW - 3 * 864e5, list: [
         { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' }, { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' }, { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5' }] } } },
       [LOCAL + '/dienynas-plus-usage.json']: usageSeed(),
@@ -346,12 +346,8 @@ module.exports = {
       run: async (h) => { await h.tap('[data-tab="4"]'); } },
     { id: '07-lithuanian', label: 'In Lithuanian too', caption: 'Switch between Lithuanian and English in Settings › General.', lt: true,
       run: async (h) => { await h.scrollTo('main section:nth-of-type(3)', 18); } },
-    { id: '08-children', label: 'Switch children in one tap', caption: 'Each child’s photo stays at the top and shrinks as you scroll; tap one to switch.',
-      run: async (h) => {
-        await h.tap('[data-tab="1"]');
-        await h.tap('.lesson.current');
-        await h.scrollTo(330);   // scrolled: the header and the children row shrink
-      } },
+    { id: '08-children', label: 'Switch children in one tap', caption: 'Each child’s photo sits at the top; the first time, add a photo for each.',
+      photoCard: true },   // Today with the add-photos card (Jonas has no photo yet)
     { id: '09-launch', label: 'Launch screen', caption: 'The calendar draws itself for a moment; a tap skips it.', settle: 800 },
     { id: '10-settings', label: 'Settings', caption: 'Six palettes or Auto, three layouts, text size and headline font.',
       run: async (h) => { await h.tap('#settings', { after: 900 }); } },
