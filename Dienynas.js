@@ -30,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.14.0';
+const VERSION = '1.14.1';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -52,7 +52,7 @@ const KC_INSTALL = 'dienynasplus-install-id';
 const BLUEPRINTS_REPO = 'https://github.com/gadominas/app-blueprints';
 const BLUEPRINTS = [
   { id: 'in-app-updates', name: 'In-app updates', version: '1.0.0', since: '1.4.0' },
-  { id: 'settings', name: 'Settings', version: '1.1.0', since: '1.10.0' },
+  { id: 'settings', name: 'Settings', version: '1.1.1', since: '1.14.1' },
   { id: 'ai-configuration', name: 'AI configuration', version: '1.0.0', since: '1.5.0' },
   { id: 'launch-screen', name: 'Launch screen', version: '1.0.0', since: '1.7.0' },
   { id: 'widgets', name: 'Widgets', version: '1.0.0', since: '1.8.0' },
@@ -94,7 +94,9 @@ const AI_INVITE = {
 // ───────────────────────────── settings (app-blueprints · settings) ─────────────────────────────
 // Choices live in settings.json in iCloud Drive › Scriptable › DienynasPlus; school data, chats and sign-in stay where they were.
 const SET_APP = "DienynasPlus";
-const sfm = (() => { try { return FileManager.iCloud(); } catch (e) { return FileManager.local(); } })();
+// iCloud Drive when the phone is signed in to iCloud, otherwise the phone itself (settings blueprint 1.1.1):
+// FileManager.iCloud() itself never fails; asking it for its folder does, so ask inside the try.
+const sfm = (() => { try { const ic = FileManager.iCloud(); ic.documentsDirectory(); return ic; } catch (e) { return FileManager.local(); } })();
 const SET_DIR = sfm.joinPath(sfm.documentsDirectory(), SET_APP);
 const SP = (n) => sfm.joinPath(SET_DIR, n + ".json");
 
