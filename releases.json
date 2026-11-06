@@ -4,6 +4,50 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.14.4",
+      "date": "2026-11-07",
+      "title": "Ready for the App Store",
+      "lt": {
+        "title": "Paruošta App Store"
+      },
+      "highlights": [
+        {
+          "icon": "📱",
+          "title": "Ready for the App Store",
+          "text": "Built as an app of its own, Dienynas+ gets new versions from the App Store instead of downloading them.",
+          "lt": {
+            "title": "Paruošta App Store",
+            "text": "Kaip atskira programa Dienynas+ naujas versijas gauna iš App Store, o ne atsisiunčia pati."
+          }
+        },
+        {
+          "icon": "✅",
+          "title": "Checked on every change",
+          "text": "Every change now runs the shared app tests: start-up, widget and usage counts.",
+          "lt": {
+            "title": "Tikrinama po kiekvieno pakeitimo",
+            "text": "Po kiekvieno pakeitimo paleidžiami bendri programų testai: paleidimas, valdiklis ir naudojimo skaičiai."
+          }
+        },
+        {
+          "icon": "⏰",
+          "title": "Later still means two days",
+          "text": "Tap Later on an update and Dienynas+ won't ask again for two days. Check for updates now finds it any time.",
+          "lt": {
+            "title": "„Vėliau“ vis dar reiškia dvi dienas",
+            "text": "Paspaudus „Vėliau“, Dienynas+ dvi dienas nebeklaus. „Tikrinti atnaujinimus dabar“ ją randa bet kada."
+          }
+        }
+      ],
+      "changes": [
+        "In-app updates 1.1.0: in a native shell (BuildIt) there is no update check or installer, and Settings › Updates says new versions come through the App Store",
+        "Portable bridge recipe: the page hands its messages to window.__hostBridge when a native shell provides one",
+        "Testing recipe: the app-blueprints testkit (lint and conformance packs) runs on every push (.github/workflows/tests.yml)",
+        "Blueprint trace: Stability patterns 1.0.1, AI configuration 1.0.1, Launch screen 1.0.1, Widgets 1.1.1"
+      ],
+      "fixes": []
+    },
+    {
       "version": "1.14.3",
       "date": "2026-11-06",
       "title": "Steadier offline",

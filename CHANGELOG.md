@@ -2,6 +2,19 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.14.4 (2026-11-07): Ready for the App Store
+
+- 📱 **Ready for the App Store**: Built as an app of its own, Dienynas+ gets new versions from the App Store instead of downloading them.
+- ✅ **Checked on every change**: Every change now runs the shared app tests: start-up, widget and usage counts.
+- ⏰ **Later still means two days**: Tap Later on an update and Dienynas+ won't ask again for two days. Check for updates now finds it any time.
+
+**Changes**
+
+- In-app updates 1.1.0: in a native shell (BuildIt) there is no update check or installer, and Settings › Updates says new versions come through the App Store
+- Portable bridge recipe: the page hands its messages to window.__hostBridge when a native shell provides one
+- Testing recipe: the app-blueprints testkit (lint and conformance packs) runs on every push (.github/workflows/tests.yml)
+- Blueprint trace: Stability patterns 1.0.1, AI configuration 1.0.1, Launch screen 1.0.1, Widgets 1.1.1
+
 ## 1.14.3 (2026-11-06): Steadier offline
 
 - 📶 **Your diary stays offline**: Opened without internet, Dienynas+ shows your saved diary, never an empty one.
