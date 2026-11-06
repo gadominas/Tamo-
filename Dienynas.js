@@ -30,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.14.2';
+const VERSION = '1.14.3';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -909,14 +909,16 @@ async function loadAll(api) {
   const today = todayV();
   const monday = mondayOf(today);
   const warnings = [];
+  let firstError = null;
   const safe = (label, p) =>
     p.catch((e) => {
       if (e && e.badLogin) throw e;
       warnings.push(`${label}: ${e.message || e}`);
+      firstError = firstError || e;
       return null;
     });
   const monthStart = `${today.slice(0, 8)}01`;
-  const [w0, w1, homework, feed, diary, events, messages] = await Promise.all([
+  const parts = await Promise.all([
     safe("schedule", fetchWeek(api, monday)),
     safe("schedule (next week)", fetchWeek(api, addDays(monday, 7))),
     safe("homework", api.modern("core/app/darbai", { dateFrom: addDays(today, -21), dateTo: addDays(today, 28), workType: "home" }).then(mapHomework)),
@@ -925,6 +927,10 @@ async function loadAll(api) {
     safe("calendar", api.modern("core/app/calendar/events/allDay", { dateFrom: monthStart, dateTo: addDays(monthStart, 45) }).then(mapAllDay)),
     safe("messages", fetchMessages(api, addDays(today, -7))),
   ]);
+  // Nothing came back (offline with a session still saved, so no sign-in was needed to notice): that's a failure, not an
+  // empty diary. Callers then keep the saved diary and the widget's snapshot instead of saving empty data over them (1.14.3).
+  if (parts.every((x) => x === null)) throw firstError;
+  const [w0, w1, homework, feed, diary, events, messages] = parts;
   return {
     v: 1,
     at: Date.now(),
@@ -3843,6 +3849,14 @@ class App {
     this.updateChecked = false;
     this.updateOffered = false; // an update sheet was offered this launch (then no AI invitation)
     this.settingsEffect = ""; // what closing Settings must do: "" or "render"
+    this.notice = ""; // a start-up notice (recipe · safe-startup), said once on the first page after the launch screen
+  }
+
+  showNotice() {
+    if (!this.notice) return;
+    const n = this.notice;
+    this.notice = "";
+    this.wv.evaluateJavaScript(`window.__aiToast && window.__aiToast(${safeJSON(n)})`, false).catch(() => {});
   }
 
   offerUpdate() {
@@ -3882,6 +3896,7 @@ class App {
   async show(data, extra = {}) {
     await Promise.race([this.wv.loadHTML(buildHTML()), pause(15000)]);
     await handOver(this.clientState(data, extra));
+    this.showNotice();
   }
 
   async progress(stage) {
@@ -4538,8 +4553,10 @@ async function bootApp(fresh, isClosed) {
   try { seen = await ev(`document.visibilityState + ", " + innerWidth + "x" + innerHeight`, 5000); } catch (e) { seen = String(e.message || e); }
   startLog(`screen ready in ${((Date.now() - t0) / 1000).toFixed(1)} s (page: ${seen})`);
   track("app_open", { layout: settings.density, theme: settings.theme, ai_key: !!aiKey(), language: settings.lang });
-  if (loadIssues.length || !settingsOk) ev(`window.__aiToast && window.__aiToast(${safeJSON(BOOT_TEXT().missing)})`).catch(() => {});
-  else if (loadRepaired.length) ev(`window.__aiToast && window.__aiToast(${safeJSON(BOOT_TEXT().repaired)})`).catch(() => {});   // damaged files were kept aside (safe-startup 1.1.0)
+  // Files that didn't arrive or arrived damaged (safe-startup 1.1.0) are told once the launch screen is gone: a toast at boot
+  // sat under the launch screen and the page TAMO's answer builds dropped it, so nobody saw it (1.14.3).
+  app.notice = loadIssues.length || !settingsOk ? BOOT_TEXT().missing : loadRepaired.length ? BOOT_TEXT().repaired : "";
+  afterSplash().then(() => { if (!isClosed() && !app.busy) app.showNotice(); });   // while TAMO is asked, show() says it on the new page
   // Deferred work, once the first screen is drawn: today's diary from TAMO, then updates (and the AI invitation), then the widget's icon.
   let refreshed = Promise.resolve();
   Timer.schedule(700, false, () => {
