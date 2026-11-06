@@ -4,6 +4,51 @@
   "script": "Dienynas.js",
   "releases": [
     {
+      "version": "1.14.3",
+      "date": "2026-11-06",
+      "title": "Steadier offline",
+      "lt": {
+        "title": "Patikimiau be interneto"
+      },
+      "highlights": [
+        {
+          "icon": "📶",
+          "title": "Your diary stays offline",
+          "text": "Opened without internet, Dienynas+ shows your saved diary, never an empty one.",
+          "lt": {
+            "title": "Dienynas lieka be interneto",
+            "text": "Atidarius be interneto rodomas išsaugotas dienynas, o ne tuščias."
+          }
+        },
+        {
+          "icon": "💬",
+          "title": "Says when data is missing",
+          "text": "If some data couldn't be read at start, a note now appears after the launch screen.",
+          "lt": {
+            "title": "Praneša apie trūkstamus duomenis",
+            "text": "Jei paleidžiant dalies duomenų nepavyko nuskaityti, po pradžios ekrano pasirodo pranešimas."
+          }
+        },
+        {
+          "icon": "🧪",
+          "title": "Tested before release",
+          "text": "22 automated scenarios check the whole app before every new version.",
+          "lt": {
+            "title": "Patikrinta prieš išleidžiant",
+            "text": "Prieš kiekvieną naują versiją 22 automatiniai scenarijai patikrina visą programą."
+          }
+        }
+      ],
+      "changes": [
+        "Automated tests in tests/: the real script runs in Node with stand-ins for Scriptable, 22 scenarios (docs/TESTING.md)"
+      ],
+      "fixes": [
+        "Opened offline within 25 minutes of the last visit, Dienynas+ showed an empty diary with a long red banner and saved the empty data over the last good diary and the widget's snapshot",
+        "The note that some settings or data couldn't be read at start-up sat under the launch screen and was never seen",
+        "A scheduled check while offline right after using the app reported \"Nothing new\" instead of saying TAMO couldn't be reached"
+      ]
+    },
+    {
       "version": "1.14.2",
       "date": "2026-11-04",
       "title": "Opens on any iPhone",

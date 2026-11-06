@@ -2,6 +2,22 @@
 
 All notable changes to Dienynas+. Generated from `releases.json`; edit that file, not this one.
 
+## 1.14.3 (2026-11-06): Steadier offline
+
+- 📶 **Your diary stays offline**: Opened without internet, Dienynas+ shows your saved diary, never an empty one.
+- 💬 **Says when data is missing**: If some data couldn't be read at start, a note now appears after the launch screen.
+- 🧪 **Tested before release**: 22 automated scenarios check the whole app before every new version.
+
+**Changes**
+
+- Automated tests in tests/: the real script runs in Node with stand-ins for Scriptable, 22 scenarios (docs/TESTING.md)
+
+**Fixes**
+
+- Opened offline within 25 minutes of the last visit, Dienynas+ showed an empty diary with a long red banner and saved the empty data over the last good diary and the widget's snapshot
+- The note that some settings or data couldn't be read at start-up sat under the launch screen and was never seen
+- A scheduled check while offline right after using the app reported "Nothing new" instead of saying TAMO couldn't be reached
+
 ## 1.14.2 (2026-11-04): Opens on any iPhone
 
 - 📱 **Opens on any iPhone**: Dienynas+ opens on iPhones that aren't signed in to iCloud, every time.
