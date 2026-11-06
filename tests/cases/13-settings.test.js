@@ -42,7 +42,7 @@ const H = require("../harness");
   E.tap(E.$$("#cfgsheet .srow.bp")[0]);
   await E.until(() => E.log.safari.length, "the blueprint link");
   console.log("E Built with opens:", E.log.safari[0]);
-  E.check(/^https:\/\/github\.com\/gadominas\/app-blueprints\/blob\/stability-patterns-v1\.0\.0\/blueprints\/stability-patterns\.md$/.test(E.log.safari[0]), "a tagged blueprint link");
+  E.check(/^https:\/\/github\.com\/gadominas\/app-blueprints\/blob\/stability-patterns-v1\.0\.1\/blueprints\/stability-patterns\.md$/.test(E.log.safari[0]), "a tagged blueprint link");
   // the page asking for things it may not do
   const nav = (a, params) => E.getDom().window.__scriptableNav(`tamo://${a}?id=0&p=${encodeURIComponent(JSON.stringify(params))}`);
   nav("openurl", { v: "https://example.com/elsewhere" });

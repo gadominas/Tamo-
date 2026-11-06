@@ -30,12 +30,14 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.14.3';
+const VERSION = '1.14.4';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
 const UPDATE_SNOOZE_MS = 2 * 24 * 3600 * 1000;   // "Later" = 2 days
 const KC_UPDATE_SNOOZE = 'dienynasplus-update-snooze';   // Keychain key, unique per app
+// In a native shell (BuildIt) new versions come from the App Store or TestFlight, never from GitHub (Step 8).
+const NATIVE_SHELL = (() => { try { return config.runsInNativeShell === true; } catch (e) { return false; } })();
 
 // ── Anonymous usage counts (opt-in), sent to PostHog (app-blueprints · usage-analytics) ──
 // Nothing is sent until KEY is filled in AND the person agrees. Each event carries a random install ID
@@ -51,12 +53,12 @@ const KC_INSTALL = 'dienynasplus-install-id';
 // inventory tools read it without running the script, and Settings › Built with shows it.
 const BLUEPRINTS_REPO = 'https://github.com/gadominas/app-blueprints';
 const BLUEPRINTS = [
-  { id: 'stability-patterns', name: 'Stability patterns', version: '1.0.0', since: '1.14.2' },
-  { id: 'in-app-updates', name: 'In-app updates', version: '1.0.1', since: '1.14.2' },
+  { id: 'stability-patterns', name: 'Stability patterns', version: '1.0.1', since: '1.14.4' },
+  { id: 'in-app-updates', name: 'In-app updates', version: '1.1.0', since: '1.14.4' },
   { id: 'settings', name: 'Settings', version: '1.1.2', since: '1.14.2' },
-  { id: 'ai-configuration', name: 'AI configuration', version: '1.0.0', since: '1.5.0' },
-  { id: 'launch-screen', name: 'Launch screen', version: '1.0.0', since: '1.7.0' },
-  { id: 'widgets', name: 'Widgets', version: '1.0.0', since: '1.8.0' },
+  { id: 'ai-configuration', name: 'AI configuration', version: '1.0.1', since: '1.14.4' },
+  { id: 'launch-screen', name: 'Launch screen', version: '1.0.1', since: '1.14.4' },
+  { id: 'widgets', name: 'Widgets', version: '1.1.1', since: '1.14.4' },
   { id: 'ai-invitation', name: 'AI invitation', version: '1.2.1', since: '1.9.0' },
   { id: 'usage-analytics', name: 'Anonymous usage analytics', version: '1.1.0', since: '1.11.0' },
 ];
@@ -345,7 +347,7 @@ function settingsState(child, canSwitch) {
     lang: LANG(), settings: Object.fromEntries(Object.keys(SET_KEYS).map((k) => [k, settings[k]])),
     cfg: Object.fromEntries(CFG_FLAT.map((d) => [d.k, cfg(d.k)])),
     cfgSchema: CONFIG.map(([title, items]) => ({ title: lt ? title.lt : title.en, items: items.map((d) => { const x = loc(d); delete x.lt; return x; }) })),
-    palettes: PALETTES, version: VERSION, appName: APP_NAME,
+    palettes: PALETTES, version: VERSION, nativeShell: NATIVE_SHELL, appName: APP_NAME,
     blueprints: BLUEPRINTS, blueprintsRepo: BLUEPRINTS_REPO,
     child: child ? { name: child.title, scale: gradeMaxFor(child.key) } : null, canSwitch: !!canSwitch,
     usageAvailable: usageAvailable(), usageStatus: usageStatus(),
@@ -1832,7 +1834,8 @@ function pageMain() {
       new Promise((res, rej) => {
         const id = ++seq;
         pending[id] = { res, rej, timer: setTimeout(() => window.bridgeReply(id, false, "timeout"), timeoutMs) };
-        location.href = `tamo://${action}?id=${id}&p=${encodeURIComponent(JSON.stringify(params))}`;
+        const url = `tamo://${action}?id=${id}&p=${encodeURIComponent(JSON.stringify(params))}`;
+        if (window.__hostBridge) window.__hostBridge(url); else window.location.href = url;   // portable-bridge recipe
       });
     const p = chain.then(run, run);
     chain = p.catch(() => {});
@@ -2314,7 +2317,7 @@ function pageMain() {
       general: "General", language: "Language", languageHelp: "The app redraws in this language when you close Settings", grades: "Grades", scale: (n) => `Grade scale for ${n}`, scaleHelp: "Averages, bars and Ask use it", other: "Other…",
       ask: "Ask", aiRow: "Keys, models and token usage", aiNone: "Add a Claude or OpenAI key for ✨ Ask", aiBtn: "AI settings",
       account: "Account", switchChild: "Switch child", web: "Open TAMO website", login: "Change sign-in details", signout: "Log out", signoutHelp: "Removes your TAMO sign-in, the children's data and photos, Ask chats and AI keys from this phone. Appearance and language stay.", confirm: "Confirm",
-      updates: "Updates", offer: "Offer new versions", offerHelp: (v) => `You have Dienynas+ ${v}. “Later” waits two days.`, check: "Check for updates now", checkBtn: "Check", checking: "Checking…",
+      updates: "Updates", offer: "Offer new versions", offerHelp: (v) => `You have Dienynas+ ${v}. “Later” waits two days.`, shellHelp: (v) => `You have Dienynas+ ${v}. New versions come through the App Store (or TestFlight).`, check: "Check for updates now", checkBtn: "Check", checking: "Checking…",
       startLog: "Start-up log", startLogHelp: "What happened the last times Dienynas+ opened", show: "Show", hide: "Hide", nothingLogged: "Nothing logged yet.",
       reset: "Reset", original: "original", changed: (n) => `${n} setting${n === 1 ? "" : "s"} changed`, none: "All settings are at their original values", resetAll: "Reset all", confirmReset: "Confirm reset",
       builtWith: "Built with", builtHint: (a) => `${a} is built from shared blueprints that the other apps use too. Tap one to read how that part works.`, bp: (v, a, s) => `Blueprint ${v} · since ${a} ${s}`, all: "All blueprints",
@@ -2326,7 +2329,7 @@ function pageMain() {
       general: "Bendra", language: "Kalba", languageHelp: "Uždarius nustatymus programa persipieš šia kalba", grades: "Pažymiai", scale: (n) => `Vertinimo skalė: ${n}`, scaleHelp: "Ja remiasi vidurkiai, juostos ir „Klausk“", other: "Kita…",
       ask: "Klausk", aiRow: "Raktai, modeliai ir žetonų naudojimas", aiNone: "Pridėkite Claude arba OpenAI raktą „Klausk“ funkcijai", aiBtn: "AI nustatymai",
       account: "Paskyra", switchChild: "Keisti vaiką", web: "Atidaryti TAMO svetainę", login: "Keisti prisijungimo duomenis", signout: "Atsijungti", signoutHelp: "Pašalina TAMO prisijungimą, vaikų duomenis ir nuotraukas, pokalbius ir DI raktus iš šio telefono. Išvaizda ir kalba išlieka.", confirm: "Patvirtinti",
-      updates: "Atnaujinimai", offer: "Siūlyti naujas versijas", offerHelp: (v) => `Jūsų versija: Dienynas+ ${v}. „Vėliau“ palaukia dvi dienas.`, check: "Tikrinti atnaujinimus dabar", checkBtn: "Tikrinti", checking: "Tikrinama…",
+      updates: "Atnaujinimai", offer: "Siūlyti naujas versijas", offerHelp: (v) => `Jūsų versija: Dienynas+ ${v}. „Vėliau“ palaukia dvi dienas.`, shellHelp: (v) => `Jūsų versija: Dienynas+ ${v}. Naujos versijos ateina per App Store (arba TestFlight).`, check: "Tikrinti atnaujinimus dabar", checkBtn: "Tikrinti", checking: "Tikrinama…",
       startLog: "Paleidimo žurnalas", startLogHelp: "Kas vyko paskutinius kartus atidarant Dienynas+", show: "Rodyti", hide: "Slėpti", nothingLogged: "Kol kas nieko neužrašyta.",
       reset: "Atstatyti", original: "pradinė", changed: (n) => `Pakeista nustatymų: ${n}`, none: "Visi nustatymai pradiniai", resetAll: "Atstatyti viską", confirmReset: "Patvirtinti",
       builtWith: "Sukurta pagal", builtHint: (a) => `${a} sukurta pagal bendrus šablonus, kuriuos naudoja ir kitos programos. Paspauskite, kad perskaitytumėte, kaip veikia ta dalis.`, bp: (v, a, s) => `Šablonas ${v} · nuo ${a} ${s}`, all: "Visi šablonai",
@@ -2425,8 +2428,10 @@ function pageMain() {
       ${swRow("shareUsage", CT.share, CT.shareHelp)}
       <div class="srow"><div class="grow"><b>${h(CT.test)}</b><small id="usagemsg" class="muted" aria-live="polite">${h(SET.usageStatus || CT.testHelp)}</small></div><button class="sm" data-act="usage-test">${h(CT.testBtn)}</button></div>` : ""}
       <h3 class="sec">${h(CT.updates)}</h3>
-      ${swRow("checkUpdates", CT.offer, CT.offerHelp(SET.version))}
-      <div class="srow"><div class="grow"><b>${h(CT.check)}</b><small id="updmsg" class="muted" aria-live="polite"></small></div><button class="sm" data-act="updcheck">${h(CT.checkBtn)}</button></div>
+      ${SET.nativeShell
+        ? `<div class="srow"><div class="grow"><b>${h(CT.updates)}</b><small class="muted">${h(CT.shellHelp(SET.version))}</small></div></div>`
+        : `${swRow("checkUpdates", CT.offer, CT.offerHelp(SET.version))}
+      <div class="srow"><div class="grow"><b>${h(CT.check)}</b><small id="updmsg" class="muted" aria-live="polite"></small></div><button class="sm" data-act="updcheck">${h(CT.checkBtn)}</button></div>`}
       <div class="srow"><div class="grow"><b>${h(CT.startLog)}</b><small class="muted">${h(CT.startLogHelp)}</small></div><button class="sm" data-act="startlog">${h(CT.show)}</button></div>
       <pre id="startlog" class="startlog" hidden></pre>
       ${SET.cfgSchema.map((sec) => `<h3 class="sec">${h(sec.title)}</h3>${sec.items.map(fieldHTML).join("")}`).join("")}
@@ -3011,7 +3016,7 @@ function messageHTML(title, message, buttons = []) {
   .btn.alt{background:var(--chip);color:var(--ink)}</style>${NO_ZOOM}</head><body style="padding-bottom:0">
   ${splashHTML()}<script>${SPLASH_JS}</script>
   <div class="center"><svg class="idleMark" viewBox="0 0 240 240" role="img" aria-label="Dienynas+ logo">${LOGO_PARTS}</svg><h1 class="date" style="margin:0 0 8px">${esc(title)}</h1><p class="sub" style="margin:0 0 18px">${esc(message)}</p>
-  ${buttons.map((b, i) => `<button class="btn ${i ? "alt" : ""}" onclick="location.href='tamo://${b.action}?id=0&p=%7B%7D'">${esc(b.label)}</button>`).join("")}</div></body></html>`;
+  ${buttons.map((b, i) => `<button class="btn ${i ? "alt" : ""}" onclick="var url='tamo://${b.action}?id=0&p=%7B%7D'; if (window.__hostBridge) window.__hostBridge(url); else window.location.href = url;">${esc(b.label)}</button>`).join("")}</div></body></html>`;
 }
 
 // ─────────────── AI configuration ───────────────
@@ -3773,6 +3778,7 @@ function cmpVer(a, b) {
 }
 
 async function checkForUpdate() {
+  if (NATIVE_SHELL) return null;   // Step 8: updates come through the App Store
   if (!settings.checkUpdates || updateSnoozed()) return null;
   try {
     const req = new Request(`${REPO_RAW}releases.json?t=${Date.now()}`);
@@ -3814,6 +3820,7 @@ function clearUpdateSnooze() {
 }
 
 async function applyUpdate(info) {
+  if (NATIVE_SHELL) throw new Error('This app is updated through the App Store.');   // Step 8: never download code
   const req = new Request(`${REPO_RAW}${encodeURI((info && info.script) || SCRIPT_FILE)}?t=${Date.now()}`);
   req.timeoutInterval = 30;
   const code = await req.loadString();
