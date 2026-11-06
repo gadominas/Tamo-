@@ -1,0 +1,42 @@
+// Schedule: this week's days, a lesson's details and attachment, next week with a day off, a later week loaded on demand,
+// and a week that fails to load.
+const H = require("../harness");
+(async () => {
+  const tamo = {};
+  const { E, p } = await H.run({ kc: H.signedIn(), settings: H.quiet(), tamo });
+  await E.settle();
+  E.tap('[data-tab="1"]');
+  const chips = () => E.$$(".days .day").map((d) => E.text(d.querySelector(".w")) + " " + E.text(d.querySelector(".d")) + ":" + E.text(d.querySelector(".c")) + (d.classList.contains("on") ? "*" : ""));
+  console.log("A", E.text(".weeknav .lbl"), "| days:", chips().join(" "));
+  E.check(/This week/.test(E.text(".weeknav .lbl")) && chips().length === 5 && chips()[3].endsWith("*"), "this week with today selected");
+  const cur = E.$(".lesson.current");
+  E.tap(cur);
+  console.log("B current lesson opened:", cur.classList.contains("open"), "|", E.text(cur.querySelector(".more")));
+  E.check(/Teacher ?Laura Kalbaitė/.test(E.text(cur.querySelector(".more"))) && /Subject average ?9,5/.test(E.text(cur.querySelector(".more"))), "teacher, topic and subject average");
+  E.tap('[data-day="2026-10-27"]');
+  const sci = E.$$(".lesson").find((l) => /Gamtos mokslai/.test(l.textContent));
+  E.tap(sci);
+  console.log("C Tuesday's science lesson:", E.text(sci.querySelector(".more")).slice(0, 120));
+  E.tap(sci.querySelector("button.file"));
+  await E.until(() => E.log.safari.length, "the attachment opens");
+  console.log("  attachment opened in the app:", E.log.safari[0], "| asked TAMO:", E.requests(/filedownloadurl/).length);
+  E.check(/files\.tamo\.lt\/download\/f-hw5\.pdf/.test(E.log.safari[0]), "the attachment's download link opens in Safari");
+  const before = E.requests(/calendar\/events\?/).length;
+  E.tap('[data-week="1"]');
+  console.log("D", E.text(".weeknav .lbl"), "| days:", chips().join(" "), "| no new request:", E.requests(/calendar\/events\?/).length === before);
+  E.tap('[data-day="2026-11-02"]');
+  console.log("  Monday:", E.text("section .panel"));
+  E.check(/No school: Vėlinės/.test(E.text("section .panel")), "the day off says so");
+  E.tap('[data-week="1"]');
+  console.log("E week after next:", E.text("section .panel"));
+  await E.until(() => E.$$(".days .day").length, "the week loaded");
+  console.log("  loaded on demand:", E.log.weeks.slice(-1)[0], "| days:", chips().join(" "));
+  E.check(E.log.weeks.slice(-1)[0] === "2026-11-09", "a later week is asked for when shown");
+  tamo.fail = ["calendar/events"];
+  E.tap('[data-week="1"]');
+  await E.until(() => /Couldn't load/.test(E.text("section .panel")), "the failed week");
+  console.log("F a week TAMO can't send:", E.text("section .panel"));
+  E.finish(); await p;
+  console.log("errors:", E.errors.length ? E.errors.join(" ; ") : "none", "| JS errors:", E.log.jsErrors || "none");
+  process.exit(0);
+})().catch((e) => { console.log("CRASH", e.stack); process.exit(1); });

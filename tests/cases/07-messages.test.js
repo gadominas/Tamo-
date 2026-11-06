@@ -1,0 +1,41 @@
+// Messages: the 7-day chart with unread, grouping by day, filtering a day, opening a message (marks it read in TAMO),
+// its attachment and links, the class group's messages, and a message that fails to load.
+const H = require("../harness");
+(async () => {
+  const tamo = {};
+  const { E, p } = await H.run({ kc: H.signedIn(), settings: H.quiet(), tamo });
+  await E.settle();
+  console.log("A unread badge:", E.text('[data-tab="3"] .badge'));
+  E.tap('[data-tab="3"]');
+  const bars = E.$$(".chart button").map((b) => E.text(b.querySelector(".w")) + ":" + (E.text(b.querySelector(".cnt")) || "0") + (b.querySelector(".u") ? "u" : ""));
+  console.log("B chart:", bars.join(" "), "|", E.text("section h2 small"));
+  E.check(bars.join(" ") === "Fri:0 Sat:0 Sun:0 Mon:0 Tue:1u Wed:2 Thu:2u" && /2 unread/.test(E.text("section h2 small")), "7 days, unread in yellow");
+  const heads = E.$$("main section h2").map((h) => h.childNodes[0].textContent).slice(1);
+  console.log("C groups:", heads.join(", "), "| class group message:", E.$$(".row").some((r) => /Klasės fotografavimas/.test(r.textContent)));
+  E.check(heads.join() === "Today,Yesterday,Tue Oct 27,Older", "grouped by day, then older");
+  E.tap('[data-msgday="2026-10-28"]');
+  console.log("D one day:", E.$$("main .row").map((r) => E.text(r.querySelector(".title"))).join(", "));
+  E.tap('[data-msgday=""]');
+  const row = E.$('[data-msg*="9104"]');
+  console.log("E unread dot before:", !row.querySelector(".dot").classList.contains("off"));
+  E.tap(row);
+  await E.until(() => /Gerbiami/.test(E.text("#sheet")), "the message text");
+  console.log("  sheet:", E.text("#sheet").slice(0, 140));
+  console.log("  marked read in TAMO:", E.log.tamoRead.join(","), "| dot now:", E.$('[data-msg*="9104"] .dot').classList.contains("off") ? "off" : "on", "| badge:", E.text('[data-tab="3"] .badge'));
+  E.check(E.log.tamoRead.includes("9104") && E.text('[data-tab="3"] .badge') === "1", "opening marks it read");
+  E.tap("#sheet a");
+  await E.until(() => E.log.safari.length, "the link opens");
+  console.log("F link opened in Safari:", E.log.safari.slice(-1)[0], "| the app page stayed:", !E.log.leftPage);
+  E.check(E.log.safari.includes("https://example.org/ekskursija") && !E.log.leftPage, "links leave through Safari, not the app's window");
+  E.tap("#sheet button.file");
+  await E.until(() => E.log.safari.length === 2, "the attachment");
+  console.log("G attachment:", E.log.safari[1]);
+  E.tap("#sheet [data-close]");
+  tamo.fail = ["messaging/messages/received/"];
+  E.tap('[data-msg*="9087"]');
+  await E.until(() => /Couldn't load/.test(E.text("#sheet")), "the error");
+  console.log("H a message TAMO can't send:", E.text("#sheet .banner"));
+  E.finish(); await p;
+  console.log("errors:", E.errors.length ? E.errors.join(" ; ") : "none", "| JS errors:", E.log.jsErrors || "none");
+  process.exit(0);
+})().catch((e) => { console.log("CRASH", e.stack); process.exit(1); });

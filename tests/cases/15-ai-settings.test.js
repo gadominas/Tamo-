@@ -1,0 +1,60 @@
+// AI settings (app-blueprints · ai-configuration): add a Claude key (native prompt), its models, Test connection, pick a
+// model, add OpenAI and use it, remove keys with two taps, token usage and Reset counters; keys only ever masked on the
+// page. Then an old 1.4 OpenAI key moved to its new Keychain name.
+const H = require("../harness");
+(async () => {
+  const kc = H.signedIn();
+  let { E, p } = await H.run({ kc, settings: H.quiet() });
+  await E.settle();
+  E.tap("#settings"); await E.until(() => E.$("#cfgsheet.open"), "Settings");
+  E.tap('[data-act="ai-open"]');
+  await E.until(() => E.$("#aisheet .aicard"), "the AI sheet");
+  const cards = () => E.$$("#aisheet .aicard").map((c) => E.text(c.querySelector(".aic-h")) + " [" + E.text(c.querySelector(".aic-row")) + "]");
+  console.log("A AI sheet:", cards().join(" · "), "|", E.$$("#aisheet h3.sec").map((h) => h.textContent).join(", "));
+  E.alert([H.KEYS.anthropic]);
+  E.tap('#aisheet [data-aiact="aikey"][data-v="anthropic"]');
+  await E.until(() => /key saved/.test(E.toast()), "key saved");
+  console.log("B key prompt:", E.lastAlert().title, "| secure:", E.lastAlert().secure[0], "| toast:", E.toast(), "| shown as:", E.text("#aisheet .aicard.active code"));
+  E.check(E.text("#aisheet .aicard.active code") === "sk-ant-…1234" && E.kc.DIENYNASPLUS_ANTHROPIC_KEY === H.KEYS.anthropic, "the key is saved in the Keychain and shown masked");
+  console.log("  Ask button appeared:", !!E.$('[data-tab="5"]'), "| models:", E.$$("#ms-anthropic option").map((o) => o.value).join(", "));
+  E.check(!!E.$('[data-tab="5"]'), "Ask shows up as soon as a key exists");
+  E.tap('#aisheet [data-aiact="aitest"][data-v="anthropic"]');
+  await E.until(() => /works/.test(E.toast()), "the test");
+  console.log("C test:", E.toast(), "| request had max_tokens:", E.log.ai[0].body.max_tokens, "| sent to:", E.log.ai[0].provider, "with its own key:", E.log.ai[0].key === H.KEYS.anthropic);
+  E.input("#ms-anthropic", "claude-sonnet-5-5"); await E.settle();
+  console.log("D model picked:", E.toast(), "| saved:", JSON.stringify(E.json(H.local("dienynas-plus-ai-settings.json")).model));
+  E.alert([H.KEYS.openai]);
+  E.tap('#aisheet [data-aiact="aikey"][data-v="openai"]');
+  await E.until(() => /OpenAI key saved/.test(E.toast()), "OpenAI key");
+  console.log("E OpenAI models (text only):", E.$$("#ms-openai option").map((o) => o.value).join(", "));
+  E.check(E.$$("#ms-openai option").map((o) => o.value).join() === "gpt-5.4,gpt-5.4-mini", "only models that write text, newest first");
+  E.tap('#aisheet [data-aiact="aiprov"][data-v="openai"]'); await E.settle();
+  console.log("  in use:", E.text("#aisheet .aicard.active .aic-h"), "| order:", cards().map((c) => c.split(" ")[0]).join(", "));
+  E.tap('#aisheet [data-aiact="airm"][data-v="openai"]');
+  console.log("F remove, first tap:", E.text('#aisheet [data-aiact="airm"][data-v="openai"]'), "| key still there:", !!E.kc.DIENYNASPLUS_OPENAI_KEY);
+  E.tap('#aisheet [data-aiact="airm"][data-v="openai"]');
+  await E.until(() => /OpenAI key removed/.test(E.toast()), "removed");
+  console.log("  removed:", !E.kc.DIENYNASPLUS_OPENAI_KEY, "| in use now:", E.text("#aisheet .aicard.active .aic-h"));
+  E.check(!E.kc.DIENYNASPLUS_OPENAI_KEY && /Claude/.test(E.text("#aisheet .aicard.active .aic-h")), "removing the key in use falls back to the other provider");
+  const usage = E.$$("#aisheet .ucard").map((u) => E.text(u.querySelector(".aic-h")) + " | " + E.$$("#aisheet .utab tr").slice(1, 2).map((r) => E.text(r)).join(""));
+  console.log("G token usage:", usage.join(" · "));
+  E.tap('#aisheet [data-aiact="usagereset"]'); E.tap('#aisheet [data-aiact="usagereset"]');
+  await E.until(() => /reset/.test(E.toast()), "reset");
+  console.log("  Reset counters (two taps):", E.text("#aisheet .sh-body").includes("No AI requests yet."));
+  const page = E.getDom().window.document.documentElement.outerHTML;
+  console.log("H full keys on the page:", page.includes(H.KEYS.anthropic) || page.includes(H.KEYS.openai), "| in files:", Object.values(E.files).some((v) => /ABCDEFGHIJKLMNOP/.test(String(v))));
+  E.check(!page.includes(H.KEYS.anthropic) && !Object.values(E.files).some((v) => /ABCDEFGHIJKLMNOP/.test(String(v))), "keys stay in the Keychain");
+  E.tap('#aisheet [data-aiact="airm"][data-v="anthropic"]'); E.tap('#aisheet [data-aiact="airm"][data-v="anthropic"]');
+  await E.until(() => !E.$('[data-tab="5"]'), "Ask hidden");
+  console.log("I last key removed: Ask hidden:", !E.$('[data-tab="5"]'), "| AI invitation due again:", E.settings().aiInvite.next === 0, "| Settings row:", E.text("#s-aistatus"));
+  E.tap('#aisheet [data-aiact="aiclose"]');
+  E.finish(); await p;
+
+  ({ E, p } = await H.run({ kc: H.signedIn({ "dienynasplus.openai-key": H.KEYS.openai }), settings: H.quiet() }));
+  await E.settle();
+  console.log("J an old 1.4 OpenAI key: moved:", E.kc.DIENYNASPLUS_OPENAI_KEY === H.KEYS.openai, "| old name gone:", !("dienynasplus.openai-key" in E.kc), "| in use:", E.json(H.local("dienynas-plus-ai-settings.json")).aiProvider);
+  E.check(E.kc.DIENYNASPLUS_OPENAI_KEY === H.KEYS.openai && !("dienynasplus.openai-key" in E.kc), "the old key is migrated");
+  E.finish(); await p;
+  console.log("errors:", E.errors.length ? E.errors.join(" ; ") : "none", "| JS errors:", E.log.jsErrors || "none");
+  process.exit(0);
+})().catch((e) => { console.log("CRASH", e.stack); process.exit(1); });

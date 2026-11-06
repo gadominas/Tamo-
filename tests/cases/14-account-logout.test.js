@@ -1,0 +1,46 @@
+// Account: change sign-in details (the saved diary and the widget forget the old account), then Log out with two taps:
+// sign-in, AI keys, chats, photos, news and saved data go; appearance and language stay; Sign in works again at once.
+const H = require("../harness");
+(async () => {
+  const [U, J] = H.CHILDREN.map(H.roleKeyOf);
+  const kc = H.withKey({ DIENYNASPLUS_OPENAI_KEY: H.KEYS.openai, "dienynasplus.role": U });
+  const files = {};
+  files[H.local(`dienynas-plus-avatar-${H.hashKey(J)}.jpg`)] = Buffer.from("JPEG");
+  files[H.local(`dienynas-plus-chat-${H.hashKey(U)}.json`)] = JSON.stringify({ v: 1, roleKey: U, history: [{ role: "user", text: "Hi", at: 1 }], pack: null });
+  const { E, p } = await H.run({ kc, files, settings: H.quiet({ theme: "sepia", lang: "en" }), tamo: { children: 2 } });
+  await E.settle();
+  const caches = () => Object.keys(files).filter((f) => /dienynas-plus-cache-/.test(f)).length;
+  console.log("A signed in:", E.$(".kid.on").getAttribute("aria-label"), "| saved diaries:", caches());
+  E.tap("#settings"); await E.until(() => E.$("#cfgsheet.open"), "Settings");
+  console.log("  Account rows:", E.$$('#cfgsheet [data-act="acct"]').map((b) => E.text(b.querySelector("b"))).join(" / "));
+  E.alert("Jonas Pavyzdys — 2B klasė");
+  E.tap('[data-act="acct"][data-v="switchChild"]');
+  await E.until(() => E.$(".kid.on") && E.$(".kid.on").getAttribute("aria-label") === "Jonas Pavyzdys", "Jonas via Settings");
+  await E.settle();
+  console.log("  Switch child:", E.lastAlert().actions.join(" / "), "→", E.$(".kid.on").getAttribute("aria-label"));
+  E.tap("#settings"); await E.until(() => E.$("#cfgsheet.open"), "Settings");
+  E.alert(["other.tevai", "not-a-real-password"], 0);
+  E.tap('[data-act="acct"][data-v="login"]');
+  await E.until(() => E.kc["dienynasplus.username"] === "other.tevai", "new details");
+  await E.settle();
+  console.log("B changed sign-in details: user", E.kc["dienynasplus.username"], "| asked whose diary:", E.lastAlert().title, "| widget children now:", Object.keys(E.json(H.local("dienynasplus-widget.json")).children).length, "| diary:", !!E.$(".now"));
+  E.tap("#settings"); await E.until(() => E.$("#cfgsheet.open"), "Settings");
+  E.tap('[data-act="acct"][data-v="signout"]');
+  console.log("C Log out, first tap:", E.text('[data-act="acct"][data-v="signout"] b'), "| still signed in:", "dienynasplus.username" in E.kc);
+  E.check("dienynasplus.username" in E.kc, "one tap doesn't log out");
+  E.tap('[data-act="acct"][data-v="signout"]');
+  await E.until(() => E.log.pages.slice(-1)[0] === "message", "the logged-out page");
+  console.log("  logged out:", E.text(".center p"));
+  console.log("  Keychain left:", Object.keys(E.kc).join(", ") || "nothing");
+  const left = Object.keys(files).map((f) => f.split("/").pop()).filter((f) => /dienynas-plus-(cache|chat|avatar|news|seen)/.test(f));
+  console.log("  children's files left:", left.join(", ") || "none", "| widget:", JSON.stringify(E.json(H.local("dienynasplus-widget.json")).children), "| theme kept:", E.settings().theme);
+  E.check(!Object.keys(E.kc).some((k) => /username|password|session|role|children|_KEY$/.test(k)) && !left.length && E.settings().theme === "sepia", "everything about the account goes, the look stays");
+  E.alert(["demo.tevai", "not-a-real-password"], 0);
+  E.tap(".center button");
+  await E.until(() => E.$(".now"), "signed in again");
+  await E.settle();
+  console.log("D Sign in again without restarting:", E.text("h1.date"), "| child:", E.$(".kid.on").getAttribute("aria-label"));
+  E.finish(); await p;
+  console.log("errors:", E.errors.length ? E.errors.join(" ; ") : "none", "| JS errors:", E.log.jsErrors || "none");
+  process.exit(0);
+})().catch((e) => { console.log("CRASH", e.stack); process.exit(1); });

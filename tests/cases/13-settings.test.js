@@ -1,0 +1,65 @@
+// Settings (app-blueprints · settings): sections in order, appearance applied and saved at once, the language redraws
+// the app on Done, tunables (steps, out-of-range values, Reset, Reset all), the grade scale, Updates, Built with links,
+// and what the page may not change. Keys never reach settings.json or the page.
+const H = require("../harness");
+(async () => {
+  const kc = H.withKey();
+  const { E, p } = await H.run({ kc, settings: H.quiet() });
+  await E.settle();
+  E.tap("#settings");
+  await E.until(() => E.$("#cfgsheet.open"), "Settings");
+  const secs = E.$$("#cfgsheet h3.sec").map((h) => h.textContent);
+  console.log("A sections:", secs.join(" · "));
+  E.check(secs.join() === "Appearance,General,Grades,Ask,Account,Privacy,Updates,What Ask reads,TAMO,Widget,Built with", "the shared section order");
+  console.log("  AI row:", E.text("#s-aistatus"));
+  const root = () => E.getDom().window.document.documentElement;
+  E.tap('[data-act="look"][data-k="theme"][data-v="slate"]');
+  E.tap('[data-act="look"][data-k="density"][data-v="tiny"]');
+  E.tap('[data-act="look"][data-k="textSize"][data-v="1.25"]');
+  E.tap('[data-act="look"][data-k="font"][data-v="serif"]');
+  await E.settle();
+  const s = E.settings();
+  console.log("B look on screen:", root().dataset.theme, root().dataset.font, root().style.getPropertyValue("--ts"), E.getDom().window.document.body.className, "| saved:", s.theme, s.density, s.textSize, s.font);
+  E.check(s.theme === "slate" && s.density === "tiny" && s.textSize === 1.25 && s.font === "serif" && root().dataset.theme === "slate", "applied at once and saved");
+  E.tap('[data-act="cfgstep"][data-k="requestWait"][data-v="1"]');
+  await E.settle();
+  E.input('input.cfgin[data-k="weeksBack"]', "99");
+  await E.settle();
+  E.input('input.cfgin[data-k="messageDays"]', "30,4");
+  await E.settle();
+  console.log("C tunables saved:", JSON.stringify(E.settings().cfg), "|", E.text(".cfg-foot .note"));
+  E.check(E.settings().cfg.requestWait === 30 && E.settings().cfg.weeksBack === 6 && E.settings().cfg.messageDays === 30, "steps, clamping and a decimal comma");
+  E.tap('[data-act="cfgreset"][data-k="weeksBack"]'); await E.settle();
+  console.log("  Reset one:", JSON.stringify(E.settings().cfg));
+  E.tap('[data-act="cfgall"]');
+  console.log("  Reset all armed:", E.text('[data-act="cfgall"]'));
+  E.tap('[data-act="cfgall"]'); await E.settle();
+  console.log("  after Confirm reset:", JSON.stringify(E.settings().cfg), "|", E.text(".cfg-foot .note"));
+  E.check(JSON.stringify(E.settings().cfg) === "{}", "Reset all takes two taps and stores nothing");
+  E.input('select.cfgsel[data-k="scale"]', "7"); await E.settle();
+  E.tap('[data-act="toggle"][data-v="checkUpdates"]'); await E.settle();
+  console.log("D grade scale:", JSON.stringify(E.settings().gradeScales), "| offer updates:", E.settings().checkUpdates);
+  E.tap(E.$$("#cfgsheet .srow.bp")[0]);
+  await E.until(() => E.log.safari.length, "the blueprint link");
+  console.log("E Built with opens:", E.log.safari[0]);
+  E.check(/^https:\/\/github\.com\/gadominas\/app-blueprints\/blob\/stability-patterns-v1\.0\.0\/blueprints\/stability-patterns\.md$/.test(E.log.safari[0]), "a tagged blueprint link");
+  // the page asking for things it may not do
+  const nav = (a, params) => E.getDom().window.__scriptableNav(`tamo://${a}?id=0&p=${encodeURIComponent(JSON.stringify(params))}`);
+  nav("openurl", { v: "https://example.com/elsewhere" });
+  nav("set", { k: "gradeScales", v: "x" });
+  nav("set", { k: "theme", v: "hotpink" });
+  await E.settle();
+  console.log("F refused: other links opened:", E.log.safari.length - 1, "| gradeScales still:", JSON.stringify(E.settings().gradeScales), "| theme still:", E.settings().theme);
+  E.check(E.log.safari.length === 1 && E.settings().theme === "slate", "only allowed keys, values and links");
+  E.tap('[data-act="lang"][data-v="lt"]'); await E.settle();
+  console.log("G language picked, before Done:", E.$$("nav.tabs button")[0].textContent);
+  E.tap('[data-act="cfgclose"]');
+  await E.until(() => /Šiandien/.test(E.text("nav.tabs")), "the app in Lithuanian");
+  console.log("  after Done:", E.$$("nav.tabs button").map((b) => b.textContent.replace(/\d+$/, "")).join(", "), "|", E.text("h1.date"));
+  const leak = /sk-ant|ABCDEFGHIJKLMNOP1234/.test(E.files[H.SETTINGS]) || E.getDom().window.document.documentElement.outerHTML.includes(H.KEYS.anthropic);
+  console.log("H key in settings.json or the page:", leak);
+  E.check(!leak, "the key stays in the Keychain");
+  E.finish(); await p;
+  console.log("errors:", E.errors.length ? E.errors.join(" ; ") : "none", "| JS errors:", E.log.jsErrors || "none");
+  process.exit(0);
+})().catch((e) => { console.log("CRASH", e.stack); process.exit(1); });

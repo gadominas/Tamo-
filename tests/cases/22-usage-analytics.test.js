@@ -1,0 +1,53 @@
+// Anonymous usage (app-blueprints · usage-analytics): nothing is sent before the one-time question is answered; No sends
+// nothing; Yes sends anonymous batches to PostHog's US cloud (counts and fixed choices, never names or school data);
+// the Settings test button; turning it off deletes the install ID.
+const H = require("../harness");
+(async () => {
+  const kc = H.signedIn();
+  let { E, p } = await H.run({ kc, settings: { aiInvite: { off: true } } });
+  await E.settle();
+  console.log("A question on Today:", E.text("#usageask b"), "| sent so far:", E.log.usage.length);
+  E.tap('[data-ua="0"]');
+  E.tap('[data-tab="1"]'); E.tap('[data-tab="3"]');
+  await E.settle(); await H.wait(300);
+  console.log("B No thanks:", E.toast(), "| saved:", E.settings().usageAsked, E.settings().shareUsage, "| sent:", E.log.usage.length);
+  E.check(!E.log.usage.length && E.settings().usageAsked && !E.settings().shareUsage, "No sends nothing");
+  E.finish(); await p;
+
+  ({ E, p } = await H.run({ kc: H.signedIn(), settings: { aiInvite: { off: true } } }));
+  await E.settle();
+  E.tap('[data-ua="1"]');
+  E.tap('[data-tab="1"]'); E.tap('[data-tab="3"]');
+  E.tap('[data-msg*="9101"]');
+  await E.until(() => /Penktadienį/.test(E.text("#sheet")), "a message");
+  E.tap("#sheet [data-close]");
+  E.tap("#refresh");
+  await E.settle(); await H.wait(300);
+  E.finish(); await p;
+  const ev = E.log.usage;
+  console.log("C Yes, share:", E.toast() || "(toast shown)", "| events:", ev.map((e) => e.event + (e.properties.tab ? "(" + e.properties.tab + ")" : "")).join(", "));
+  const props = ev[0].properties;
+  console.log("  every event:", JSON.stringify({ distinct_id: props.distinct_id, $process_person_profile: props.$process_person_profile, app: props.app, app_version: props.app_version }), "| one install ID:", new Set(ev.map((e) => e.properties.distinct_id)).size === 1);
+  const sent = JSON.stringify(ev);
+  console.log("  names or school data in what was sent:", /Ugnė|Pavyzd|demo\.tevai|Penktadienio|Matematika|9101|tok-|role-/.test(sent));
+  E.check(ev.some((e) => e.event === "usage_opt_in") && ev.some((e) => e.event === "tab_viewed" && e.properties.tab === "schedule") && ev.some((e) => e.event === "message_opened") && ev.some((e) => e.event === "data_refreshed"), "the agreed events");
+  E.check(!/Ugnė|Pavyzd|demo\.tevai|Penktadienio|Matematika|9101|tok-|role-/.test(sent) && ev.every((e) => e.properties.$process_person_profile === false && e.properties.app === "dienynasplus"), "anonymous: counts and fixed choices only");
+  const files = E.files, kc2 = E.kc;
+  ({ E, p } = await H.run({ kc: kc2, files }));
+  await E.settle(); await H.wait(300);
+  const open = E.log.usage.find((e) => e.event === "app_open");
+  console.log("D next launch:", open && JSON.stringify({ layout: open.properties.layout, theme: open.properties.theme, ai_key: open.properties.ai_key, language: open.properties.language }));
+  E.tap("#settings"); await E.until(() => E.$("#cfgsheet.open"), "Settings");
+  E.tap('[data-act="usage-test"]');
+  await E.until(() => /^✓/.test(E.text("#usagemsg")), "the test result");
+  console.log("E Send test:", E.text("#usagemsg"));
+  E.tap('[data-act="toggle"][data-v="shareUsage"]');
+  await E.settle();
+  const n = E.log.usage.length;
+  E.tap('[data-act="cfgclose"]'); E.tap('[data-tab="2"]'); await E.settle(); await H.wait(300);
+  console.log("F turned off: install ID kept:", "dienynasplus-install-id" in E.kc, "| sent after:", E.log.usage.length - n);
+  E.check(!("dienynasplus-install-id" in E.kc) && E.log.usage.length === n, "off stops sending and deletes the ID");
+  E.finish(); await p;
+  console.log("errors:", E.errors.length ? E.errors.join(" ; ") : "none", "| JS errors:", E.log.jsErrors || "none");
+  process.exit(0);
+})().catch((e) => { console.log("CRASH", e.stack); process.exit(1); });

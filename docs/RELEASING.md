@@ -5,9 +5,10 @@
 ## Steps
 
 1. **Bump the version** in `Dienynas.js`: `const VERSION = '1.5.0';`. Use [semantic versioning](https://semver.org): a new feature bumps the middle number, a fix-only release the last.
-2. **Add a release at the top of `releases.json`**, with the same version.
-3. **Regenerate the changelog**: `node tools/changelog.js`.
-4. **Commit everything to `master` in one push**: the script, `releases.json` and `CHANGELOG.md`.
+2. **Run the tests**: `cd tests && npm install && node run.js`. Release only when every scenario passes; add or update a scenario for what changed ([TESTING.md](TESTING.md)).
+3. **Add a release at the top of `releases.json`**, with the same version.
+4. **Regenerate the changelog**: `node tools/changelog.js`.
+5. **Commit everything to `master` in one push**: the script, `releases.json` and `CHANGELOG.md`.
 
 Users see the update the next time they open Dienynas. GitHub can take a few minutes to serve new files.
 

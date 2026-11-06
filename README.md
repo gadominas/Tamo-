@@ -269,6 +269,10 @@ Everything is in one file. The data layer runs in Scriptable; the interface is a
 
 </details>
 
+### Tests
+
+`tests/` runs the real `Dienynas.js` in Node, with stand-ins for Scriptable and invented TAMO data, and taps through 22 scenarios the way a person would: sign-in, every tab, ✨ Ask, Settings, children, offline and errors, updates, scheduled checks, the widget and safe start-up. Nothing reaches the network. Run them with `cd tests && npm install && node run.js`; [docs/TESTING.md](docs/TESTING.md) explains how they work.
+
 ## Troubleshooting
 
 | Problem | Try this |
