@@ -30,7 +30,7 @@ const SESSION_TTL_MIN = 25;
 
 
 // This build's version. When releasing, bump it and add a matching entry to releases.json.
-const VERSION = '1.14.4';
+const VERSION = '1.15.0';
 const APP_ID = 'dienynasplus';   // unique per app, never changes
 const REPO_RAW = 'https://raw.githubusercontent.com/gadominas/Tamo-/master/';
 const SCRIPT_FILE = 'Dienynas.js';   // the script's file name in the repository
@@ -49,19 +49,30 @@ const USAGE = { HOST: 'https://us.i.posthog.com', KEY: 'phc_yAi2PxJCRioWEKLF3uoc
 const KC_INSTALL = 'dienynasplus-install-id';
 
 // ───────── Blueprints ─────────
-// Shared blueprints this app was built with (github.com/gadominas/app-blueprints). One line per blueprint, in this exact shape:
+// Shared blueprints this app was built with. One line per blueprint, in this exact shape:
 // inventory tools read it without running the script, and Settings › Built with shows it.
-const BLUEPRINTS_REPO = 'https://github.com/gadominas/app-blueprints';
 const BLUEPRINTS = [
-  { id: 'stability-patterns', name: 'Stability patterns', version: '1.0.1', since: '1.14.4' },
-  { id: 'in-app-updates', name: 'In-app updates', version: '1.1.0', since: '1.14.4' },
-  { id: 'settings', name: 'Settings', version: '1.1.2', since: '1.14.2' },
-  { id: 'ai-configuration', name: 'AI configuration', version: '1.0.1', since: '1.14.4' },
-  { id: 'launch-screen', name: 'Launch screen', version: '1.0.1', since: '1.14.4' },
+  { id: 'stability-patterns', name: 'Stability patterns', version: '1.0.2', since: '1.15.0' },
+  { id: 'in-app-updates', name: 'In-app updates', version: '1.1.1', since: '1.15.0' },
+  { id: 'settings', name: 'Settings', version: '2.0.1', since: '1.15.0' },
+  { id: 'ai-configuration', name: 'AI configuration', version: '1.0.2', since: '1.15.0' },
+  { id: 'launch-screen', name: 'Launch screen', version: '1.0.2', since: '1.15.0' },
   { id: 'widgets', name: 'Widgets', version: '1.1.1', since: '1.14.4' },
-  { id: 'ai-invitation', name: 'AI invitation', version: '1.2.1', since: '1.9.0' },
-  { id: 'usage-analytics', name: 'Anonymous usage analytics', version: '1.1.0', since: '1.11.0' },
+  { id: 'ai-invitation', name: 'AI invitation', version: '1.2.2', since: '1.15.0' },
+  { id: 'usage-analytics', name: 'Anonymous usage analytics', version: '1.1.1', since: '1.15.0' },
 ];
+// What each blueprint is, shown when a Built with row is tapped (settings blueprint, Step 9).
+// Written by `node tools/about.js` in app-blueprints from the versions in BLUEPRINTS; never edit by hand.
+const BLUEPRINT_ABOUT = {
+  'stability-patterns': { what: "The rules that keep the app opening on any iPhone.", does: "Uses iCloud only when this iPhone has it, keeps data on the phone otherwise, and checks the Keychain before reading from it.", drives: "Where the app keeps its data, the widget, the installer and in-app updates.", why: "A new phone, one without iCloud or one with nothing saved yet still opens the app, instead of stopping with an error." },
+  'in-app-updates': { what: "The way the app offers and installs its own new versions.", does: "When the app opens it checks for a newer version, shows its three best features, and installs it with Update now; Later waits two days.", drives: "The update sheet, Settings › Updates and the installer.", why: "Fixes and features reach you without reinstalling by hand, and the app only replaces itself with a checked, newer copy." },
+  'settings': { what: "The shared Settings sheet every app has.", does: "Keeps the app's look, behaviour and limits in one place; changes apply at once and survive updates.", drives: "Appearance (colours, layout, text size, font), the app's own choices, Updates, every adjustable value, and this Built with list.", why: "Nobody edits code to change a setting, and every app is set up the same familiar way." },
+  'ai-configuration': { what: "How the app connects to Claude or OpenAI.", does: "Keeps your key in the iPhone Keychain, lets you pick the provider and model, tests the connection and counts the tokens each feature uses.", drives: "Settings › AI settings, every AI feature, and the ✦ AI label on everything AI wrote.", why: "Your key goes only to its own provider, you can see what AI uses, and the app still works without a key." },
+  'launch-screen': { what: "The branded screen the app opens on.", does: "Shows the app's logo, name and tagline for about two and a half seconds; a tap skips it, and Reduce Motion keeps it still.", drives: "The first moment after the app opens, with the same logo as the icon and the widget.", why: "The app starts the same recognisable way every time while its page gets ready behind the screen, and the screen can never get stuck." },
+  'widgets': { what: "The shared design for the app's Home Screen and Lock Screen widgets.", does: "Draws the app's logo and name, one headline figure or title, a few rows and an updated line, from the app's own data.", drives: "Every widget size, the Lock Screen versions, and the widget's settings.", why: "Widgets name their app, look like one family, say when their data is old, and never show a script error." },
+  'ai-invitation': { what: "A short card that shows what AI adds to this app.", does: "While no AI key is set, it names three things AI can do here and takes you straight to adding a key; it comes back every few days at most, and Don't remind me again ends it.", drives: "The invitation at launch, and the hand-over to Settings › AI settings.", why: "Features that need a key are hidden without one, so they are easy to miss; this shows them without nagging or covering anything else." },
+  'usage-analytics': { what: "Optional, anonymous counts of which features get used.", does: "Only after you say yes, it sends counts and fixed choices, never names, text, links or keys; turning it off stops sending and forgets the install ID.", drives: "The one-time question on the main page and Settings › Privacy.", why: "It shows what to improve next without collecting anything personal." },
+};
 
 const K = {
   user: "dienynasplus.username",
@@ -348,7 +359,7 @@ function settingsState(child, canSwitch) {
     cfg: Object.fromEntries(CFG_FLAT.map((d) => [d.k, cfg(d.k)])),
     cfgSchema: CONFIG.map(([title, items]) => ({ title: lt ? title.lt : title.en, items: items.map((d) => { const x = loc(d); delete x.lt; return x; }) })),
     palettes: PALETTES, version: VERSION, nativeShell: NATIVE_SHELL, appName: APP_NAME,
-    blueprints: BLUEPRINTS, blueprintsRepo: BLUEPRINTS_REPO,
+    blueprints: BLUEPRINTS, blueprintAbout: BLUEPRINT_ABOUT,
     child: child ? { name: child.title, scale: gradeMaxFor(child.key) } : null, canSwitch: !!canSwitch,
     usageAvailable: usageAvailable(), usageStatus: usageStatus(),
     hasKey: !!aiKey(), aiStatus: aiStatusLine(),
@@ -1593,6 +1604,19 @@ body.d-tiny .lesson .when{display:inline;margin-left:6px}
 .uabtns button{flex:1;min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--blue);color:var(--card);font-weight:700}
 .uabtns button.ghost{background:var(--card);color:var(--ink)}
 #cfgsheet{position:fixed;inset:0;z-index:50;background:var(--paper);color:var(--ink);transform:translateY(102%);visibility:hidden;transition:transform .28s ease,visibility 0s linear .28s;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;text-align:left}
+#bpabout{position:fixed;inset:0;z-index:52;pointer-events:none}
+#bpabout.open{pointer-events:auto}
+.bp-dim{position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;transition:opacity .2s}
+#bpabout.open .bp-dim{opacity:1}
+.bp-card{position:absolute;left:0;right:0;bottom:0;max-height:86vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--paper);color:var(--ink);border-top:1px solid var(--rule);border-radius:20px 20px 0 0;padding:18px 20px calc(env(safe-area-inset-bottom) + 28px);transform:translateY(102%);transition:transform .28s ease}
+#bpabout.open .bp-card{transform:none}
+.bp-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:6px}
+.bp-top .grow{flex:1;min-width:0}
+.bp-kick{display:block;font:700 calc(11.5px * var(--ts))/1.2 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--signal)}
+.bp-card h2{font:700 calc(24px * var(--ts))/1.15 var(--display);margin:4px 0 4px}
+.bp-l{font:700 calc(12.5px * var(--ts))/1.2 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:20px 0 6px}
+.bp-p{margin:0;font-size:calc(16px * var(--ts));line-height:1.45}
+@media (prefers-reduced-motion: reduce){.bp-card,.bp-dim{transition:none}}
 #cfgsheet.open{transform:none;visibility:visible;transition:transform .28s ease}
 #cfgsheet button{font:inherit;color:inherit;background:none;border:0;border-radius:0;padding:0;font-weight:inherit;cursor:pointer;text-align:inherit}
 #cfgsheet .sh-head{position:sticky;top:0;z-index:2;background:var(--paper);display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 14px) 18px 12px;border-bottom:1px solid var(--rule)}
@@ -2320,7 +2344,7 @@ function pageMain() {
       updates: "Updates", offer: "Offer new versions", offerHelp: (v) => `You have Dienynas+ ${v}. “Later” waits two days.`, shellHelp: (v) => `You have Dienynas+ ${v}. New versions come through the App Store (or TestFlight).`, check: "Check for updates now", checkBtn: "Check", checking: "Checking…",
       startLog: "Start-up log", startLogHelp: "What happened the last times Dienynas+ opened", show: "Show", hide: "Hide", nothingLogged: "Nothing logged yet.",
       reset: "Reset", original: "original", changed: (n) => `${n} setting${n === 1 ? "" : "s"} changed`, none: "All settings are at their original values", resetAll: "Reset all", confirmReset: "Confirm reset",
-      builtWith: "Built with", builtHint: (a) => `${a} is built from shared blueprints that the other apps use too. Tap one to read how that part works.`, bp: (v, a, s) => `Blueprint ${v} · since ${a} ${s}`, all: "All blueprints",
+      builtWith: "Built with", builtHint: (a) => `${a} is built from shared blueprints that the other apps use too. Tap one to see what it does.`, bp: (v, a, s) => `Blueprint ${v} · since ${a} ${s}`, all: "About blueprints",
       dec: "Decrease", inc: "Increase" },
     lt: { privacy: "Privatumas", share: "Siųsti anoniminę statistiką", shareHelp: "Skaičiai, pvz., programos atidarymai, peržiūrėti skirtukai ir „Klausk“ atsakymai, su atsitiktiniu įrenginio ID. Niekada pažymių, žinučių, vardų ar jūsų TAMO paskyros. Išjungus ID ištrinamas.", test: "Patikrinti ryšį", testHelp: "Dabar išsiunčia vieną bandomąjį įvykį ir parodo PostHog atsakymą.", testBtn: "Siųsti bandymą", sending: "Siunčiama…",
       title: "Nustatymai", done: "Baigti", hint: "Pakeitimai įsigalioja iš karto ir saugomi šiame iPhone.", appearance: "Išvaizda", colours: "Spalvos", layout: "Išdėstymas", textSize: "Teksto dydis", font: "Antraščių šriftas",
@@ -2332,7 +2356,7 @@ function pageMain() {
       updates: "Atnaujinimai", offer: "Siūlyti naujas versijas", offerHelp: (v) => `Jūsų versija: Dienynas+ ${v}. „Vėliau“ palaukia dvi dienas.`, shellHelp: (v) => `Jūsų versija: Dienynas+ ${v}. Naujos versijos ateina per App Store (arba TestFlight).`, check: "Tikrinti atnaujinimus dabar", checkBtn: "Tikrinti", checking: "Tikrinama…",
       startLog: "Paleidimo žurnalas", startLogHelp: "Kas vyko paskutinius kartus atidarant Dienynas+", show: "Rodyti", hide: "Slėpti", nothingLogged: "Kol kas nieko neužrašyta.",
       reset: "Atstatyti", original: "pradinė", changed: (n) => `Pakeista nustatymų: ${n}`, none: "Visi nustatymai pradiniai", resetAll: "Atstatyti viską", confirmReset: "Patvirtinti",
-      builtWith: "Sukurta pagal", builtHint: (a) => `${a} sukurta pagal bendrus šablonus, kuriuos naudoja ir kitos programos. Paspauskite, kad perskaitytumėte, kaip veikia ta dalis.`, bp: (v, a, s) => `Šablonas ${v} · nuo ${a} ${s}`, all: "Visi šablonai",
+      builtWith: "Sukurta pagal", builtHint: (a) => `${a} sukurta pagal bendrus šablonus, kuriuos naudoja ir kitos programos. Paspauskite, kad pamatytumėte, ką jis daro.`, bp: (v, a, s) => `Šablonas ${v} · nuo ${a} ${s}`, all: "Apie šablonus",
       dec: "Mažinti", inc: "Didinti" },
   };
   const CT = CT_ALL[D.lang] || CT_ALL.en;
@@ -2385,11 +2409,37 @@ function pageMain() {
       <button data-act="cfgstep" data-k="${d.k}" data-v="1" aria-label="${h(CT.inc)}" ${v >= d.max ? "disabled" : ""}>+</button>
       <span class="unit">${h(d.unit || "")}</span><span class="range">${fmtCfg(d, d.min)}–${fmtCfg(d, d.max)}${ch ? ` — ${h(CT.original)} ${fmtCfg(d, d.def)}` : ""}</span></div></div>`;
   }
-  const bpLink = (b) => `${SET.blueprintsRepo}/blob/${b.id}-v${b.version}/blueprints/${b.id}.md`;
+  // Settings › Built with (settings blueprint 2.0.1, Step 9): a tap shows what a blueprint is, from text bundled in the app.
+  var bpOpen = null;   // a blueprint id, "*" for About blueprints, or null
+  var BP_KEYS = ["what", "does", "drives", "why"];
+  var BP_EN = {"fields": ["What it is", "What it does", "What it drives", "Why it matters"], "allTitle": "About blueprints", "allSub": "What they are and why every app has them", "kick": "Blueprint", "kickAll": "Built with", "none": "This version of the app carries no description of this blueprint.", "all": {"what": "Shared designs this app and its sister apps are built from, one for each part they have in common.", "does": "Each one fixes how its part works: what you see, the words used, where data is kept and the safety rules.", "drives": "Every row above; each says which version this app follows, and since which version of the app.", "why": "A fix or improvement made once reaches every app the same way, so the apps stay alike and dependable."}};
+  var BP_I18N = {"lt": {"fields": ["Kas tai", "Ką daro", "Ką valdo", "Kodėl svarbu"], "allTitle": "Apie šablonus", "allSub": "Kas jie ir kodėl juos turi kiekviena programa", "kick": "Šablonas", "kickAll": "Sukurta pagal", "none": "Šioje programos versijoje šio šablono aprašymo nėra.", "all": {"what": "Bendri sprendimai, pagal kuriuos sukurta ši ir giminingos programos, po vieną kiekvienai bendrai daliai.", "does": "Kiekvienas nustato, kaip veikia jo dalis: ką matote, kokie žodžiai naudojami, kur laikomi duomenys ir saugumo taisyklės.", "drives": "Visas eilutes aukščiau; kiekviena rodo, kurios versijos programa laikosi ir nuo kurios programos versijos.", "why": "Kartą padarytas pataisymas ar patobulinimas vienodai pasiekia visas programas, todėl jos lieka panašios ir patikimos."}, "items": {"stability-patterns": {"what": "Taisyklės, dėl kurių programa atsidaro bet kuriame iPhone.", "does": "iCloud naudoja tik tada, kai jis šiame iPhone yra, kitaip duomenis laiko telefone, o prieš skaitydama Keychain patikrina, ar jame yra įrašas.", "drives": "Kur programa laiko duomenis, valdiklį, diegimo programą ir atnaujinimus programoje.", "why": "Naujas telefonas, telefonas be iCloud ar dar nieko neišsaugojęs vis tiek atidaro programą, o ne sustoja su klaida."}, "in-app-updates": {"what": "Būdas, kuriuo programa pasiūlo ir įdiegia savo naujas versijas.", "does": "Atsidariusi patikrina, ar yra naujesnė versija, parodo tris geriausias jos naujoves ir įdiegia ją mygtuku Atnaujinti dabar; Vėliau palaukia dvi dienas.", "drives": "Atnaujinimo langą, Nustatymai › Atnaujinimai ir diegimo programą.", "why": "Pataisymai ir naujovės pasiekia jus be rankinio diegimo, o programa save pakeičia tik patikrinta, naujesne kopija."}, "settings": {"what": "Bendras Nustatymų langas, kurį turi kiekviena programa.", "does": "Programos išvaizdą, elgseną ir ribas laiko vienoje vietoje; pakeitimai veikia iškart ir išlieka po atnaujinimų.", "drives": "Išvaizdą (spalvas, išdėstymą, teksto dydį, šriftą), programos pasirinkimus, atnaujinimus, visas keičiamas reikšmes ir šį sąrašą.", "why": "Niekam nereikia keisti kodo, kad pakeistų nustatymą, o visos programos nustatomos tuo pačiu pažįstamu būdu."}, "ai-configuration": {"what": "Kaip programa jungiasi prie Claude arba OpenAI.", "does": "Jūsų raktą laiko iPhone Keychain, leidžia pasirinkti teikėją ir modelį, patikrina ryšį ir skaičiuoja, kiek žetonų sunaudoja kiekviena funkcija.", "drives": "Nustatymai › AI nustatymai, visas AI funkcijas ir žymę ✦ AI ant visko, ką parašė AI.", "why": "Raktas keliauja tik pas savo teikėją, matote, kiek AI sunaudoja, o be rakto programa vis tiek veikia."}, "launch-screen": {"what": "Firminis ekranas, kuriuo atsidaro programa.", "does": "Maždaug dvi su puse sekundės rodo programos logotipą, pavadinimą ir šūkį; paspaudimas jį praleidžia, o įjungus Mažinti judesį jis nejuda.", "drives": "Pirmąją akimirką atsidarius programai, su tuo pačiu logotipu kaip piktograma ir valdiklis.", "why": "Programa kaskart prasideda tuo pačiu atpažįstamu būdu, kol už ekrano ruošiasi jos puslapis, ir ekranas niekada neužstringa."}, "widgets": {"what": "Bendras programos pradžios ir užrakinto ekrano valdiklių dizainas.", "does": "Iš programos duomenų nupiešia jos logotipą ir pavadinimą, vieną pagrindinį skaičių ar antraštę, kelias eilutes ir atnaujinimo eilutę.", "drives": "Visų dydžių valdiklius, užrakinto ekrano versijas ir valdiklio nustatymus.", "why": "Valdikliai nurodo savo programą, atrodo kaip viena šeima, praneša, kai duomenys pasenę, ir niekada nerodo scenarijaus klaidos."}, "ai-invitation": {"what": "Trumpa kortelė, rodanti, ką šiai programai prideda AI.", "does": "Kol AI raktas nenustatytas, ji įvardija tris dalykus, kuriuos čia gali AI, ir nuveda tiesiai prie rakto pridėjimo; grįžta ne dažniau kaip kas kelias dienas, o Daugiau nepriminti ją baigia.", "drives": "Kvietimą paleidžiant programą ir perėjimą į Nustatymai › AI nustatymai.", "why": "Be rakto funkcijos, kurioms jo reikia, paslėptos ir lengvai praleidžiamos; kortelė jas parodo neįkyrėdama ir nieko neuždengdama."}, "audio-playback": {"what": "Taisyklė, leidžianti girdėti jūsų paprašytą garsą, kai įjungtas tylusis režimas.", "does": "Kol programa skaito, kalba ar groja jūsų paleistą garsą, ji praneša iOS esanti grotuvas, o baigusi grąžina garsą kitoms programoms.", "drives": "Skaitymą balsu, ištartus žodžius, laikmačio pyptelėjimus ir kitus programos garsus.", "why": "Be jos iOS tyliai nutildo programą, nors atrodo, kad ji groja."}, "read-aloud": {"what": "Bendras būdas programai skaityti tekstą balsu, su papildoma skaitykle straipsniams.", "does": "iPhone ar AI balsu skaito įrašus, santraukas ar istorijas, paryškina skaitomą sakinį ir rodo, kiek dar liko.", "drives": "Klausymo mygtukus, grotuvą apačioje, teksto rodinį, skaityklę ir Nustatymai › Klausymas.", "why": "Galite klausytis laisvomis rankomis ir visada žinote, kas skaitoma, iš kur ir kiek dar truks."}, "usage-analytics": {"what": "Neprivalomi, anonimiški skaičiai apie tai, kurios funkcijos naudojamos.", "does": "Tik jums sutikus siunčia skaičius ir fiksuotus pasirinkimus, niekada vardų, teksto, nuorodų ar raktų; išjungus nustoja siųsti ir pamiršta įrenginio ID.", "drives": "Vienkartinį klausimą pagrindiniame puslapyje ir Nustatymai › Privatumas.", "why": "Parodo, ką tobulinti toliau, nerenkant nieko asmeniško."}}}};   // the About text in the app's other languages (BLUEPRINT_ABOUT stays English)
+  function bpT(k) { var t = BP_I18N[D.lang]; return t && t[k] != null ? t[k] : BP_EN[k]; }
+  function bpEl() {
+    var el = document.getElementById("bpabout");
+    if (!el) {
+      el = document.createElement("div"); el.id = "bpabout"; el.setAttribute("aria-hidden", "true"); document.body.appendChild(el);
+      el.addEventListener("click", function (e) { e.stopPropagation(); var t = e.target.closest("[data-act]"); if (t && t.getAttribute("data-act") === "bpclose") { bpOpen = null; renderBp(); } });
+    }
+    return el;
+  }
+  function renderBp() {
+    var el = bpEl(), b = null, items = (BP_I18N[D.lang] || {}).items || {};
+    SET.blueprints.forEach(function (x) { if (x.id === bpOpen) b = x; });
+    var a = bpOpen === "*" ? bpT("all") : b ? (items[b.id] || (SET.blueprintAbout || {})[b.id]) : null;
+    el.classList.toggle("open", !!(a || b)); el.setAttribute("aria-hidden", a || b ? "false" : "true");
+    if (!a && !b) return;   // closing: keep the old content while the card slides away
+    var F = bpT("fields");
+    el.innerHTML = '<div class="bp-dim" data-act="bpclose"></div><div class="bp-card" role="dialog" aria-modal="true" aria-labelledby="bp-h">' +
+      '<div class="bp-top"><div class="grow"><small class="bp-kick">' + h(b ? bpT("kick") : bpT("kickAll")) + '</small><h2 id="bp-h">' + h(b ? b.name : bpT("allTitle")) + '</h2>' +
+      (b ? '<small class="muted">' + h(CT.bp(b.version, SET.appName, b.since)) + '</small>' : '') + '</div><button class="link" data-act="bpclose">' + h(CT.done) + '</button></div>' +
+      (a ? BP_KEYS.map(function (k, i) { return '<h3 class="bp-l">' + h(F[i]) + '</h3><p class="bp-p">' + h(a[k]) + '</p>'; }).join("") : '<p class="bp-p muted">' + h(bpT("none")) + '</p>') + '</div>';
+    el.querySelector(".bp-card").scrollTop = 0;
+  }
   function builtWithHTML() {
     return `<h3 class="sec">${h(CT.builtWith)}</h3><p class="hint">${h(CT.builtHint(SET.appName))}</p>
-      ${SET.blueprints.map((b) => `<button class="srow bp" data-act="openurl" data-v="${h(bpLink(b))}"><div class="grow"><b>${h(b.name)}</b><small class="muted">${h(CT.bp(b.version, SET.appName, b.since))}</small></div><span class="chev" aria-hidden="true">›</span></button>`).join("")}
-      <button class="srow bp" data-act="openurl" data-v="${h(SET.blueprintsRepo)}"><div class="grow"><b>${h(CT.all)}</b><small class="muted">${h(SET.blueprintsRepo.replace("https://", ""))}</small></div><span class="chev" aria-hidden="true">›</span></button>`;
+      ${SET.blueprints.map((b) => `<button class="srow bp" data-act="bpabout" data-v="${h(b.id)}"><div class="grow"><b>${h(b.name)}</b><small class="muted">${h(CT.bp(b.version, SET.appName, b.since))}</small></div><span class="chev" aria-hidden="true">›</span></button>`).join("")}
+      <button class="srow bp" data-act="bpabout" data-v="${h("*")}"><div class="grow"><b>${h(CT.all)}</b><small class="muted">${h(bpT("allSub"))}</small></div><span class="chev" aria-hidden="true">›</span></button>`;
   }
   // Settings blueprint 1.1.0: each section's rows in one card (.grp), built right after every render.
   // A heading's explanation (p.hint right under it) and the changed-count footer (.cfg-foot) stay outside.
@@ -2446,7 +2496,7 @@ function pageMain() {
     if (cfgOpen) return;
     call("settings-get", {}, 30000).then((st) => { SET = st; cfgOpen = true; renderCfg(); cfgSheet().scrollTop = 0; }, (e) => (window.__aiToast || alert)(e.message));
   }
-  function closeSettings() { cfgOpen = false; cfgArmed = false; outArmed = false; renderCfg(); call("settings-done", {}, 30000).catch(() => {}); }
+  function closeSettings() { bpOpen = null; renderBp(); cfgOpen = false; cfgArmed = false; outArmed = false; renderCfg(); call("settings-done", {}, 30000).catch(() => {}); }
   function cfgClick(e) {
     e.stopPropagation();   // the sheet's taps never reach the app's own click handler
     if (e.target.closest("select, option, input, textarea")) return;
@@ -2468,7 +2518,7 @@ function pageMain() {
       if (!pre.hidden) { pre.hidden = true; t.textContent = CT.show; return; }
       return call("startlog", {}, 30000).then((txt) => { pre.textContent = txt || CT.nothingLogged; pre.hidden = false; t.textContent = CT.hide; }, () => {});
     }
-    if (act === "openurl") return call("openurl", { v }).catch(() => {});
+    if (act === "bpabout") { bpOpen = v; return renderBp(); }
     if (act === "usage-test") {
       const um = document.getElementById("usagemsg"); t.disabled = true; if (um) um.textContent = CT.sending;
       return call("usage-test", {}, 30000).then((r) => { t.disabled = false; const m = document.getElementById("usagemsg"); if (m) m.textContent = (r && r.ok ? "✓ " : "✗ ") + ((r && r.msg) || ""); }, () => { t.disabled = false; });
@@ -4150,9 +4200,6 @@ class App {
           try { txt = FileManager.local().readString(LOG_PATH).split("\n").slice(-40).join("\n"); } catch (e) {}
           return this.reply(q.id, true, txt);
         }
-        case "openurl":   // Built with: only the blueprints repository opens from here
-          if (params.v === BLUEPRINTS_REPO || String(params.v).startsWith(BLUEPRINTS_REPO + "/")) await Safari.openInApp(params.v, false);
-          return this.reply(q.id, true, {});
         case "acct":
           await this.reply(q.id, true, {});
           return this.account(params.v);

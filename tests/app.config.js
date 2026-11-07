@@ -11,5 +11,6 @@ module.exports = {
   legacyCases: true,
   // Offline with no saved diary the app shows its "Try again" page, which has no update sheet. Until TAMO's fixtures move
   // here from harness.js the update offer can't be checked (GitHub answers while TAMO doesn't: no real phone is like that).
-  skipPacks: { 'in-app-updates': 'needs TAMO fixtures' },
+  // The same holds for Settings: the Try again page has no Settings button. Built with's About sheet is checked by 13-settings.
+  skipPacks: { 'in-app-updates': 'needs TAMO fixtures', settings: 'needs TAMO fixtures (13-settings checks Built with)' },
 };

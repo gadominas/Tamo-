@@ -37,7 +37,7 @@ const H = require("../harness");
   await E.until(() => /Updated to/.test(E.text("#upd .updtag")), "updated");
   const written = String(E.files[H.ICLOUD + "/Dienynas.js"] || "");
   console.log("F updated:", E.text("#upd .updtag"), "|", E.text("#upd .updmsg"), "| written over the script:", (written.match(/VERSION = '([^']+)'/) || [])[1]);
-  E.check(/1\.16\.0/.test(written) && /APP_ID = 'dienynasplus'/.test(written), "the newer script replaces this one");
+  E.check(written.includes(`VERSION = '${o.releases.releases[0].version}'`) && /APP_ID = 'dienynasplus'/.test(written), "the newer script replaces this one");
   E.tap('#upd [data-act="upd-close"]');
   E.finish(); await p;
 

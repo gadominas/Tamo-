@@ -1,5 +1,5 @@
 // Settings (app-blueprints · settings): sections in order, appearance applied and saved at once, the language redraws
-// the app on Done, tunables (steps, out-of-range values, Reset, Reset all), the grade scale, Updates, Built with links,
+// the app on Done, tunables (steps, out-of-range values, Reset, Reset all), the grade scale, Updates, Built with's About sheet,
 // and what the page may not change. Keys never reach settings.json or the page.
 const H = require("../harness");
 (async () => {
@@ -40,17 +40,18 @@ const H = require("../harness");
   E.tap('[data-act="toggle"][data-v="checkUpdates"]'); await E.settle();
   console.log("D grade scale:", JSON.stringify(E.settings().gradeScales), "| offer updates:", E.settings().checkUpdates);
   E.tap(E.$$("#cfgsheet .srow.bp")[0]);
-  await E.until(() => E.log.safari.length, "the blueprint link");
-  console.log("E Built with opens:", E.log.safari[0]);
-  E.check(/^https:\/\/github\.com\/gadominas\/app-blueprints\/blob\/stability-patterns-v1\.0\.1\/blueprints\/stability-patterns\.md$/.test(E.log.safari[0]), "a tagged blueprint link");
+  await E.until(() => E.$("#bpabout.open"), "the About sheet");
+  console.log("E Built with opens:", E.$("#bpabout h2").textContent, "|", E.$$("#bpabout .bp-l").map((x) => x.textContent).join(", "));
+  E.check(E.$$("#bpabout .bp-p").length === 4 && !E.log.safari.length, "the About sheet, with nothing opened");
+  E.tap('#bpabout button[data-act="bpclose"]'); await E.settle();
   // the page asking for things it may not do
   const nav = (a, params) => E.getDom().window.__scriptableNav(`tamo://${a}?id=0&p=${encodeURIComponent(JSON.stringify(params))}`);
   nav("openurl", { v: "https://example.com/elsewhere" });
   nav("set", { k: "gradeScales", v: "x" });
   nav("set", { k: "theme", v: "hotpink" });
   await E.settle();
-  console.log("F refused: other links opened:", E.log.safari.length - 1, "| gradeScales still:", JSON.stringify(E.settings().gradeScales), "| theme still:", E.settings().theme);
-  E.check(E.log.safari.length === 1 && E.settings().theme === "slate", "only allowed keys, values and links");
+  console.log("F refused: links opened:", E.log.safari.length, "| gradeScales still:", JSON.stringify(E.settings().gradeScales), "| theme still:", E.settings().theme);
+  E.check(E.log.safari.length === 0 && E.settings().theme === "slate", "only allowed keys and values, and no links");
   E.tap('[data-act="lang"][data-v="lt"]'); await E.settle();
   console.log("G language picked, before Done:", E.$$("nav.tabs button")[0].textContent);
   E.tap('[data-act="cfgclose"]');
