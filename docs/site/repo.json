@@ -1,6 +1,6 @@
 {
-  "description": "Messages. Homework. Calm. A faster, cleaner way to follow your child's day in the TAMO dienynas, the Lithuanian school e-diary: today on one screen, homework, messages, grades, a widget and an AI chat about the week. A Scriptable app.",
-  "homepage": "https://github.com/gadominas/Tamo-#readme",
+  "description": "Messages. Homework. Calm. An iPhone app for Scriptable that shows your child's TAMO dienynas, the Lithuanian school e-diary, as one calm page of today's lessons, homework, messages and grades, with a widget and an AI chat about the week.",
+  "homepage": "https://github.com/gadominas/Tamo-#install",
   "topics": [
     "scriptable",
     "scriptable-app",
@@ -11,14 +11,14 @@
     "ai",
     "claude",
     "openai",
+    "ios-widget",
     "tamo",
     "tamo-dienynas",
     "e-diary",
     "school",
     "homework",
     "parents",
-    "lithuania",
-    "ios-widget"
+    "lithuania"
   ],
   "install": {
     "kept": "Your sign-in, settings and chat history are kept.",

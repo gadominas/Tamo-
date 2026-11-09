@@ -1,12 +1,15 @@
+<!-- header:start: repo-site/tools/header.js writes this block from docs/site/header.json -->
 <div align="center">
 
-<img src="docs/logo.svg" width="96" alt="Dienynas+ logo: a week calendar with a teal homework day and a blue plus on the selected day">
+<a href="#install"><img src="docs/banner.png" width="100%" alt="Dienynas+: Messages. Homework. Calm. Your child's TAMO dienynas goes in, today's lessons, homework and messages come out on one page. Two iPhone screens show today and an AI answer, with a week strip where the selected day has a blue plus."></a>
 
-# Dienynas+
+<h2>Your child's school day, clear at a glance</h2>
 
-**Messages. Homework. Calm.**
+Sign in with your TAMO account. Open today. Ask what's due.
 
-A faster, cleaner way to follow your child's school day in the TAMO dienynas, the Lithuanian school e-diary.<br>An iPhone and iPad app for [Scriptable](https://scriptable.app). One file, no server, no sign-up.
+<a href="#install"><img src="docs/button-install.png" height="48" alt="Install Dienynas+ free"></a>&nbsp;&nbsp;<a href="CHANGELOG.md"><img src="docs/button-whats-new.png" height="48" alt="See what's new in Dienynas+"></a>
+
+<sub>Free · iPhone and iPad · Runs in the free Scriptable app · Needs a TAMO dienynas parent account · In English and Lithuanian · AI is optional, with your own Claude or OpenAI key</sub>
 
 [![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgadominas%2FTamo-%2Fmaster%2Freleases.json&query=%24.releases%5B0%5D.version&label=version&color=60A5FA&labelColor=0E1116&style=flat-square)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/iOS-Scriptable-171B22?style=flat-square&labelColor=0E1116)](https://apps.apple.com/app/scriptable/id1405459188)
@@ -16,6 +19,7 @@ A faster, cleaner way to follow your child's school day in the TAMO dienynas, th
 [![License](https://img.shields.io/badge/license-AGPL--3.0-171B22?style=flat-square&labelColor=0E1116)](LICENSE)
 
 </div>
+<!-- header:end -->
 
 <p align="center">
   <img src="docs/screenshots/01-today.png" width="31%" alt="Today screen: the English lesson in progress with minutes left, then today's six lessons with a grade on the first">

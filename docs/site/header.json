@@ -1,0 +1,31 @@
+{
+  "name": "Dienynas+",
+  "accent": "#60A5FA",
+  "headline": [
+    "Messages.",
+    "Homework.",
+    "Calm."
+  ],
+  "headlineSize": 92,
+  "sentence": "Your child's TAMO dienynas goes in. Today's lessons, homework and messages come out on one calm page.",
+  "shots": [
+    {
+      "card": "02-ask.png"
+    },
+    {
+      "card": "01-today.png"
+    }
+  ],
+  "motif": {
+    "x": 360,
+    "y": 468,
+    "w": 210,
+    "rotate": -6,
+    "front": true,
+    "svg": "<svg viewBox='0 0 210 120' xmlns='http://www.w3.org/2000/svg'><rect x='0' y='0' width='210' height='120' rx='22' fill='#171B22' stroke='#2A313C' stroke-width='2'/><g fill='#F6F7F9' fill-opacity='.28'><rect x='18' y='34' width='26' height='52' rx='8'/><rect x='54' y='34' width='26' height='52' rx='8'/><rect x='162' y='34' width='26' height='52' rx='8'/></g><rect x='90' y='34' width='26' height='52' rx='8' fill='#2DD4BF'/><rect x='122' y='26' width='36' height='68' rx='10' fill='{accent}'/><path d='M140 48 V72 M128 60 H152' stroke='#0E1116' stroke-width='5' stroke-linecap='round'/></svg>"
+  },
+  "benefit": "Your child's school day, clear at a glance",
+  "steps": "Sign in with your TAMO account. Open today. Ask what's due.",
+  "facts": "Free · iPhone and iPad · Runs in the free Scriptable app · Needs a TAMO dienynas parent account · In English and Lithuanian · AI is optional, with your own Claude or OpenAI key",
+  "bannerAlt": "Dienynas+: Messages. Homework. Calm. Your child's TAMO dienynas goes in, today's lessons, homework and messages come out on one page. Two iPhone screens show today and an AI answer, with a week strip where the selected day has a blue plus."
+}
